@@ -1,0 +1,31 @@
+name: Fuzz Test
+
+on:
+  pull_request:
+    paths:
+      - '**.c'
+      - '**.h'
+
+jobs:
+  Fuzzing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Build Fuzzer
+        run: |
+          clang -g -O1 -fsanitize=fuzzer,address,undefined -fno-sanitize-recover=undefined \
+                -Isrc src/org4c.c src/entity.c src/org4c-html.c test/fuzzers/fuzz-orghtml.c \
+                -o "$RUNNER_TEMP/fuzz-orghtml"
+      - name: Run Fuzzer
+        run: |
+          mkdir -p "$RUNNER_TEMP/corpus" "$RUNNER_TEMP/artifacts"
+          cp test/fuzzers/seed-corpus/* "$RUNNER_TEMP/corpus/"
+          "$RUNNER_TEMP/fuzz-orghtml" -max_total_time=600 -max_len=4096 \
+                -artifact_prefix="$RUNNER_TEMP/artifacts/" "$RUNNER_TEMP/corpus"
+      - name: Upload Crash
+        uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: artifacts
+          path: ${{ runner.temp }}/artifacts
