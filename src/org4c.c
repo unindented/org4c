@@ -1000,6 +1000,10 @@ org_build_attribute(const CHAR* text, SZ size, ORG_ATTRIBUTE* attr, ORG_ATTRIBUT
 static OFF
 org_line_end(ORG_CTX* ctx, OFF off)
 {
+    /* Optimization: Use some loop unrolling. */
+    while(off + 3 < ctx->size  &&  !ISNEWLINE(off+0)  &&  !ISNEWLINE(off+1)
+                               &&  !ISNEWLINE(off+2)  &&  !ISNEWLINE(off+3))
+        off += 4;
     while(off < ctx->size  &&  !ISNEWLINE(off))
         off++;
     return off;
@@ -1249,6 +1253,21 @@ org_collect_radio_targets(ORG_CTX* ctx, OFF beg, OFF end)
 
     while(off + 6 < end) {
         OFF text_beg, text_end;
+
+        /* Optimization: Skip quickly to the next '<'. */
+#if defined ORG4C_USE_UTF16
+        while(off + 6 < end  &&  CH(off) != _T('<'))
+            off++;
+#else
+        {
+            const CHAR* ptr = (const CHAR*) memchr(STR(off), '<', end - off);
+            if(ptr == NULL)
+                break;
+            off = (OFF) (ptr - ctx->text);
+        }
+#endif
+        if(off + 6 >= end)
+            break;
 
         if(CH(off) == _T('<')  &&  org_is_radio_target(ctx, off, end, &text_beg, &text_end)  &&
            ctx->n_radio_targets < RADIO_TARGETS_MAX)
