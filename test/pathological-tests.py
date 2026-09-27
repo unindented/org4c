@@ -22,6 +22,12 @@ pathological = {
     "Windows line endings":
             ("* foo\r\nbar\r\nbaz\r\n",
             re.compile("^<h1>foo</h1>\n<p>bar\nbaz</p>")),
+    "Mac line endings":
+            ("* foo\rbar\rbaz\r",
+            re.compile("^<h1>foo</h1>\n<p>bar\nbaz</p>")),
+    "mixed line endings":
+            ("* foo\r\nbar\nbaz\r- a\r\n- b\n* qux\rend",
+            re.compile("^<h1>foo</h1>\n<p>bar\nbaz</p>\n<ul>\n<li>a</li>\n<li>b</li>\n</ul>\n<h1>qux</h1>\n<p>end</p>")),
     "U+FEFF (Unicode BOM)":
             ("\ufefffoo",
             re.compile("<p>foo</p>")),

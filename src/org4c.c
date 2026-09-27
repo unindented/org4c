@@ -303,6 +303,12 @@ struct ORG_CTX_tag {
     ORG_PARSER parser;
     void* userdata;
 
+    /* Document-wide character checks (set once by org_check_doc_chars()).
+     * They also hold for the detached texts (macro expansions), which are
+     * made only of the document characters and a few ASCII ones (spaces,
+     * commas, backslashes, digits). */
+    bool doc_has_cr;                /* The document contains some '\r'. */
+
     /* Document-wide indexes (built by org_build_doc_index(); except the code
      * blocks and references, built by org_resolve_code_blocks()). They are
      * sorted by the offset unless noted otherwise. Each of the offsets is the
@@ -1004,11 +1010,37 @@ org_build_attribute(const CHAR* text, SZ size, ORG_ATTRIBUTE* attr, ORG_ATTRIBUT
  ***  Document Index  ***
  ************************/
 
+/* Check the whole document once for the characters whose absence allows
+ * some faster scanning later. */
+static void
+org_check_doc_chars(ORG_CTX* ctx)
+{
+#if defined ORG4C_USE_UTF16
+    /* Unused (memchr() works only for 8-bit characters). */
+    ctx->doc_has_cr = true;
+#else
+    ctx->doc_has_cr = (ctx->size > 0  &&  memchr(ctx->text, '\r', ctx->size) != NULL);
+#endif
+}
+
 /* Get the end of the line starting at the given offset (i.e. the offset of
  * the new line character or the end of the document). */
 static OFF
 org_line_end(ORG_CTX* ctx, OFF off)
 {
+#if !defined ORG4C_USE_UTF16
+    /* Optimization: Without any '\r' in the document, only '\n' can end the
+     * line; and memchr() is much faster than a plain loop. */
+    if(!ctx->doc_has_cr) {
+        const CHAR* ptr;
+
+        if(off >= ctx->size)
+            return ctx->size;
+        ptr = (const CHAR*) memchr(STR(off), '\n', ctx->size - off);
+        return (ptr != NULL ? (OFF) (ptr - ctx->text) : ctx->size);
+    }
+#endif
+
     /* Optimization: Use some loop unrolling. */
     while(off + 3 < ctx->size  &&  !ISNEWLINE(off+0)  &&  !ISNEWLINE(off+1)
                                &&  !ISNEWLINE(off+2)  &&  !ISNEWLINE(off+3))
@@ -6226,6 +6258,7 @@ org_parse(const ORG_CHAR* text, ORG_SIZE size, const ORG_PARSER* parser, void* u
     ctx.size = size;
     memcpy(&ctx.parser, parser, sizeof(ORG_PARSER));
     ctx.userdata = userdata;
+    org_check_doc_chars(&ctx);
     org_build_mark_char_map(&ctx);
     ctx.macro_output_budget = MACRO_MAX_OUTPUT(size);
 
