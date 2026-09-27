@@ -3032,23 +3032,32 @@ org_collect_marks(ORG_CTX* ctx, const ORG_LINE* lines, SZ n_lines)
         OFF off;
 
         for(off = line->beg; off < line->end; off++) {
-            CHAR ch = CH(off);
+            CHAR ch;
             ORG_MARK tmp;
             ORG_MARK* mark;
 
 #if defined ORG4C_USE_UTF16
     /* For UTF-16, mark_char_map[] covers only ASCII. (A non-ASCII character
      * may start only a radio link; see org_is_radio_link().) */
-    #define IS_MARK_CHAR(ch)    (((ch) < SIZEOF_ARRAY(ctx->mark_char_map))                  \
-                                    ? ctx->mark_char_map[(unsigned char) (ch)]              \
-                                    : ctx->radio_first_char_map[(unsigned char) (ch)])
+    #define IS_MARK_CHAR(off)   ((CH(off) < SIZEOF_ARRAY(ctx->mark_char_map))              \
+                                    ? ctx->mark_char_map[(unsigned char) CH(off)]           \
+                                    : ctx->radio_first_char_map[(unsigned char) CH(off)])
 #else
     /* For 8-bit encodings, mark_char_map[] covers all 256 elements. */
-    #define IS_MARK_CHAR(ch)    (ctx->mark_char_map[(unsigned char) (ch)])
+    #define IS_MARK_CHAR(off)   (ctx->mark_char_map[(unsigned char) CH(off)])
 #endif
 
-            if(!IS_MARK_CHAR(ch))
-                continue;
+            /* Optimization: Use some loop unrolling. */
+            while(off + 3 < line->end  &&  !IS_MARK_CHAR(off+0)  &&  !IS_MARK_CHAR(off+1)
+                                       &&  !IS_MARK_CHAR(off+2)  &&  !IS_MARK_CHAR(off+3))
+                off += 4;
+            while(off < line->end  &&  !IS_MARK_CHAR(off+0))
+                off++;
+
+            if(off >= line->end)
+                break;
+
+            ch = CH(off);
 
             /* Inline objects. Note we do not look for objects within the
              * contents of other objects whose contents is not parsed (e.g.
