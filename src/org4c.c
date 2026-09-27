@@ -1694,22 +1694,45 @@ org_is_list_item(ORG_CTX* ctx, OFF beg, OFF end, unsigned indent, ORG_ITEM_INFO*
 
     /* Tag of a description item: "TAG :: CONTENTS". (The last "::" wins.) */
     if(info->list_type == ORG_BLOCK_UL) {
-        OFF tmp = end;
+        OFF sep = 0;    /* Offset of the 2nd ':' of the last "::"; or zero. */
+        OFF tmp;
 
+#if !defined ORG4C_USE_UTF16
+        /* Optimization: Most items have no ':' at all, and memchr() is much
+         * faster than a plain loop. So look for all the ':' forward and just
+         * remember the last "::" found. */
+        tmp = off + 2;
+        while(tmp < end) {
+            const CHAR* ptr = (const CHAR*) memchr(STR(tmp), ':', end - tmp);
+
+            if(ptr == NULL)
+                break;
+            tmp = (OFF) (ptr - ctx->text);
+            if(CH(tmp-1) == _T(':')  &&  ISBLANK(tmp-2)  &&  org_is_word_end(ctx, tmp+1, end))
+                sep = tmp;
+            tmp++;
+        }
+#else
+        tmp = end;
         while(tmp > off + 2) {
             tmp--;
             if(CH(tmp) == _T(':')  &&  CH(tmp-1) == _T(':')  &&  ISBLANK(tmp-2)  &&
                org_is_word_end(ctx, tmp+1, end))
             {
-                OFF tag_end = org_skip_blanks_backward(ctx, off, tmp-1);
-
-                if(tag_end > off) {
-                    info->list_type = ORG_BLOCK_DL;
-                    info->tag_beg = off;
-                    info->tag_end = tag_end;
-                    off = org_skip_blanks(ctx, tmp + 1, end);
-                }
+                sep = tmp;
                 break;
+            }
+        }
+#endif
+
+        if(sep > 0) {
+            OFF tag_end = org_skip_blanks_backward(ctx, off, sep-1);
+
+            if(tag_end > off) {
+                info->list_type = ORG_BLOCK_DL;
+                info->tag_beg = off;
+                info->tag_end = tag_end;
+                off = org_skip_blanks(ctx, sep + 1, end);
             }
         }
     }

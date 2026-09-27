@@ -163,3 +163,60 @@ non-ASCII non-whitespace.
 <p><b>a</b> x  <b>b</b>  x　<i>c</i>　y é*d*é * e* *f *</p>
 <p>　<code>g</code></p>
 ````````````````````````````````
+
+The last " ::" followed by a blank or the end of line separates the tag of a
+description item.
+
+```````````````````````````````` example
+- a :: b :: c
+- x ::
+- ::
+-  :: y
+- p::q :: r
+- s :::: t
+- u ::: v
+- w	::	z ::: k
+- [ ] m :: n ::
+- tag :: 
++ g::h
+- a :b :: c:
+.
+<dl>
+<dt>a :: b</dt>
+<dd>c</dd>
+<dt>x</dt>
+<dd></dd>
+<dt></dt>
+<dd>::</dd>
+<dt></dt>
+<dd>:: y</dd>
+<dt>p::q</dt>
+<dd>r</dd>
+<dt></dt>
+<dd>s :::: t</dd>
+<dt></dt>
+<dd>u ::: v</dd>
+<dt>w</dt>
+<dd>z ::: k</dd>
+<dt class="off"><code>[&#xa0;]</code> m :: n</dt>
+<dd></dd>
+<dt>tag</dt>
+<dd></dd>
+<dt></dt>
+<dd>g::h</dd>
+<dt>a :b</dt>
+<dd>c:</dd>
+</dl>
+````````````````````````````````
+
+```````````````````````````````` example
+- a:: b
+- c ::d
+- e :: 
+.
+<ul>
+<li>a:: b</li>
+<li>c ::d</li>
+<li>e ::</li>
+</ul>
+````````````````````````````````
