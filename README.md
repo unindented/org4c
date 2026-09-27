@@ -1,4 +1,8 @@
-# ORG4C
+<div align="center">
+  <img src="media/logo.png" height="300" alt="">
+</div>
+
+<h1 align="center"><code>org4c</code></h1>
 
 This is an [Org](https://orgmode.org) parser implementation in C. It is modeled after the [MD4C](https://github.com/mity/md4c) Markdown parser, and shares its design and some code with it.
 
