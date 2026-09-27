@@ -122,6 +122,7 @@ struct ORG_HTML_tag {
 
 #define NEED_HTML_ESC_FLAG   0x1
 #define NEED_URL_ESC_FLAG    0x2
+#define NEED_SPECIAL_FLAG    0x4    /* May start a special string (see render_text()). */
 
 
 /*****************************************
@@ -136,22 +137,28 @@ struct ORG_HTML_tag {
 
 
 static void
+render_captured(ORG_HTML* r, const ORG_CHAR* text, ORG_SIZE size)
+{
+    if(r->capture_size + size > r->capture_alloc) {
+        ORG_SIZE new_alloc = r->capture_alloc + r->capture_alloc / 2 + size + 256;
+        char* new_capture = (char*) realloc(r->capture, new_alloc);
+
+        if(new_capture == NULL) {
+            r->out_of_memory = 1;
+            return;
+        }
+        r->capture = new_capture;
+        r->capture_alloc = new_alloc;
+    }
+    memcpy(r->capture + r->capture_size, text, size);
+    r->capture_size += size;
+}
+
+static inline void
 render_verbatim(ORG_HTML* r, const ORG_CHAR* text, ORG_SIZE size)
 {
     if(r->capturing) {
-        if(r->capture_size + size > r->capture_alloc) {
-            ORG_SIZE new_alloc = r->capture_alloc + r->capture_alloc / 2 + size + 256;
-            char* new_capture = (char*) realloc(r->capture, new_alloc);
-
-            if(new_capture == NULL) {
-                r->out_of_memory = 1;
-                return;
-            }
-            r->capture = new_capture;
-            r->capture_alloc = new_alloc;
-        }
-        memcpy(r->capture + r->capture_size, text, size);
-        r->capture_size += size;
+        render_captured(r, text, size);
         return;
     }
 
@@ -1124,9 +1131,39 @@ render_text(ORG_HTML* r, const ORG_CHAR* text, ORG_SIZE size)
         return;
     }
 
-    while(off < size) {
+    /* Optimization: As in render_html_escaped(), but stop also on the
+     * characters which may start a special string, so that the text is
+     * scanned only once. */
+    #define NEED_TEXT_ESC(ch)   (r->escape_map[(unsigned char)(ch)] & (NEED_HTML_ESC_FLAG | NEED_SPECIAL_FLAG))
+
+    while(1) {
         const char* special = NULL;
         ORG_SIZE n = 0;
+
+        /* Optimization: Use some loop unrolling. */
+        while(off + 3 < size  &&  !NEED_TEXT_ESC(text[off+0])  &&  !NEED_TEXT_ESC(text[off+1])
+                              &&  !NEED_TEXT_ESC(text[off+2])  &&  !NEED_TEXT_ESC(text[off+3]))
+            off += 4;
+        while(off < size  &&  !NEED_TEXT_ESC(text[off]))
+            off++;
+
+        if(off >= size)
+            break;
+
+        if(r->escape_map[(unsigned char) text[off]] & NEED_HTML_ESC_FLAG) {
+            if(off > beg)
+                render_verbatim(r, text + beg, off - beg);
+            switch(text[off]) {
+                case '"':   RENDER_VERBATIM(r, "&quot;"); break;
+                case '&':   RENDER_VERBATIM(r, "&amp;"); break;
+                case '\'':  RENDER_VERBATIM(r, "&#x27;"); break;
+                case '<':   RENDER_VERBATIM(r, "&lt;"); break;
+                case '>':   RENDER_VERBATIM(r, "&gt;"); break;
+            }
+            off++;
+            beg = off;
+            continue;
+        }
 
         if(text[off] == '\\'  &&  off + 1 < size  &&  text[off+1] == '-') {
             special = "&shy;";
@@ -1147,7 +1184,8 @@ render_text(ORG_HTML* r, const ORG_CHAR* text, ORG_SIZE size)
         }
 
         if(special != NULL) {
-            render_html_escaped(r, text + beg, off - beg);
+            if(off > beg)
+                render_verbatim(r, text + beg, off - beg);
             /* As in ox-html, the dashes at the end of the text are translated
              * only if the end of line follows. We know that only from the next
              * callback, so delay them (see flush_pending_dashes()). */
@@ -1158,11 +1196,13 @@ render_text(ORG_HTML* r, const ORG_CHAR* text, ORG_SIZE size)
             off += n;
             beg = off;
         } else {
+            /* Not a special string: Keep the character in the current run. */
             off++;
         }
     }
 
-    render_html_escaped(r, text + beg, off - beg);
+    if(off > beg)
+        render_verbatim(r, text + beg, off - beg);
 }
 
 /* Output a timestamp. Ranges ("<...>--<...>") use an en dash. */
@@ -1784,6 +1824,9 @@ org_html(const ORG_CHAR* input, ORG_SIZE input_size,
 
         if(!ISALNUM(ch)  &&  strchr("~-_.+!*(),%#@?=;:/$", ch) == NULL)
             render.escape_map[i] |= NEED_URL_ESC_FLAG;
+
+        if(ch == '\\'  ||  ch == '-'  ||  ch == '.')
+            render.escape_map[i] |= NEED_SPECIAL_FLAG;
     }
 
     ret = org_parse(input, input_size, &parser, (void*) &render);

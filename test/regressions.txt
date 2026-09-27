@@ -67,3 +67,22 @@ A huge list item counter is clamped (it used to overflow).
 <li value="999999999">a</li>
 </ol>
 ````````````````````````````````
+
+Special strings next to characters to escape, and at the end of the text
+(the normal text is scanned for both at once).
+
+```````````````````````````````` example
+a--<b "c"---&d ...& e...
+x\\-y 'z'\\- w.
+..<.. -<- ----
+f\-
+g\
+*h--* i-
+.
+<p>a&ndash;&lt;b &quot;c&quot;&mdash;&amp;d &hellip;&amp; e&hellip;
+x\&shy;y &#x27;z&#x27;\&shy; w.
+..&lt;.. -&lt;- -&mdash;
+f&shy;
+g\
+<b>h--</b> i-</p>
+````````````````````````````````
