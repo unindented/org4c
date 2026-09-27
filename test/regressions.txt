@@ -86,3 +86,68 @@ f&shy;
 g\
 <b>h--</b> i-</p>
 ````````````````````````````````
+
+Plain links are detected at the colon after their type (looking back for the
+type as a whole word within the line).
+
+```````````````````````````````` example
+https://x.org (https://x.org) xhttps://x.org 1http://x éhttp://x
+HTTPS://x.org hTTP://x :x a: b :: c
+mailto:a@b.c ftp:x file:y news:z httpsx://y
+:http://x
+http://y [[a][b https://x.org c]] ht
+tp://z
+.
+<p><a href="https://x.org">https://x.org</a> (<a href="https://x.org">https://x.org</a>) xhttps://x.org 1http://x é<a href="http://x">http://x</a>
+HTTPS://x.org hTTP://x :x a: b :: c
+<a href="mailto:a@b.c">mailto:a@b.c</a> <a href="ftp:x">ftp:x</a> <a href="y">file:y</a> news:z httpsx://y
+:<a href="http://x">http://x</a>
+<a href="http://y">http://y</a> <a href="#a">b https://x.org c</a> ht
+tp://z</p>
+````````````````````````````````
+
+Inline source blocks and Babel calls are detected at the underscore after
+"src" or "call" (looking back for them as a whole word).
+
+```````````````````````````````` example
+*https://x.org* /src_c{x}/ asrc_c{x} src_c{x}src_d{y} _call_f()_
+call_f() call_f call_f(x)y $x$src_c{y} \alpha{}src_c{d} https://a.b/src_c{d}
+src_c{d}
+.
+<p><b><a href="https://x.org">https://x.org</a></b> <i><code class="src src-c">x</code></i> asrc_c{x} <code class="src src-c">x</code><code class="src src-d">y</code> <span class="underline"></span>
+ call_f y $x$<code class="src src-c">y</code> &alpha;<code class="src src-c">d</code> <a href="https://a.b/src_c%7Bd">https://a.b/src_c{d</a>}
+<code class="src src-c">d</code></p>
+````````````````````````````````
+
+An inline source block or Babel call takes precedence over a subscript at its
+underscore.
+
+```````````````````````````````` example
+a_b src_c{d} src_c{d}_e call_f(x)_g x_src_c{y} (src_c{y})_z
+.
+<p>a<sub>b</sub> <code class="src src-c">d</code> <code class="src src-c">d</code><sub>e</sub> <sub>g</sub> x<sub>src</sub>_c{y} (<code class="src src-c">y</code>)<sub>z</sub></p>
+.
+--fsubsuperscripts
+````````````````````````````````
+
+A radio link takes precedence over a plain link, but not over an inline source
+block or Babel call.
+
+```````````````````````````````` example
+<<<http>>> <<<src>>> <<<call>>>
+
+http://x src_c{x} call_f(y) src call http
+.
+<p><a id="http">http</a> <a id="src">src</a> <a id="call">call</a></p>
+<p><a href="#http">http</a>://x <code class="src src-c">x</code>  <a href="#src">src</a> <a href="#call">call</a> <a href="#http">http</a></p>
+````````````````````````````````
+
+Inline source blocks and Babel calls with plain links disabled.
+
+```````````````````````````````` example
+https://x.org src_c{x} call_f(y)
+.
+<p>https://x.org <code class="src src-c">x</code> </p>
+.
+--fno-plain-links
+````````````````````````````````

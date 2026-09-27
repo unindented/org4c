@@ -1931,6 +1931,9 @@ static const CHAR* const org_plain_link_types[] = {
     _T("file"), _T("ftp"), _T("http"), _T("https"), _T("mailto")
 };
 
+/* Length of the longest type in org_plain_link_types[]. */
+#define ORG_PLAIN_LINK_TYPE_MAX_LEN     6
+
 static int
 org_is_link_type(ORG_CTX* ctx, OFF beg, OFF end, const CHAR* const* types, int n_types)
 {
@@ -2894,8 +2897,6 @@ org_build_mark_char_map(ORG_CTX* ctx)
     ctx->mark_char_map['<'] = 1;
     ctx->mark_char_map['\\'] = 1;
     ctx->mark_char_map['@'] = 1;
-    ctx->mark_char_map['s'] = 1;
-    ctx->mark_char_map['c'] = 1;
     ctx->mark_char_map['{'] = 1;
 
     if(!(ctx->parser.flags & ORG_FLAG_NOLATEX))
@@ -2904,12 +2905,10 @@ org_build_mark_char_map(ORG_CTX* ctx)
     if(ctx->parser.flags & (ORG_FLAG_SUBSUPERSCRIPTS | ORG_FLAG_SUBSUPERSCRIPTS_BRACED))
         ctx->mark_char_map['^'] = 1;
 
-    if(!(ctx->parser.flags & ORG_FLAG_NOPLAINLINKS)) {
-        /* First letters of the plain link types. */
-        ctx->mark_char_map['f'] = 1;
-        ctx->mark_char_map['h'] = 1;
-        ctx->mark_char_map['m'] = 1;
-    }
+    /* The colon after the type of a plain link. (We look back for the type
+     * only when we see the colon: Any letter is too frequent a mark char.) */
+    if(!(ctx->parser.flags & ORG_FLAG_NOPLAINLINKS))
+        ctx->mark_char_map[':'] = 1;
 }
 
 /* Org's PRE and POST character sets for the emphasis (besides whitespace). */
@@ -2931,10 +2930,13 @@ org_is_raw_object(CHAR ch)
     }
 }
 
-/* Check whether there is an inline object at 'off'. */
+/* Check whether there is an inline object at 'off'. Some objects are detected
+ * only at a character after their beginning (e.g. a plain link at the colon
+ * after its type); then 'mark->beg' is moved back to their beginning (which
+ * is never before 'line_beg' nor 'raw_skip_until'). */
 static int
-org_is_object(ORG_CTX* ctx, OFF off, OFF region_beg, OFF region_end, OFF line_end,
-              OFF link_skip_until, ORG_MARK* mark)
+org_is_object(ORG_CTX* ctx, OFF off, OFF region_beg, OFF region_end, OFF line_beg,
+              OFF line_end, OFF link_skip_until, OFF raw_skip_until, ORG_MARK* mark)
 {
     switch(CH(off)) {
         case _T('\\'):
@@ -2972,11 +2974,58 @@ org_is_object(ORG_CTX* ctx, OFF off, OFF region_beg, OFF region_end, OFF line_en
             return org_is_bracket_object(ctx, off, region_end, mark);
 
         case _T('_'):
+            /* Inline source block "src_" or Babel call "call_". They take
+             * precedence over anything at the underscore. */
+            if(off >= line_beg + 3  &&  off - 3 >= raw_skip_until  &&
+               org_is_inline_src(ctx, off - 3, region_end, mark))
+            {
+                mark->beg = off - 3;
+                return true;
+            }
+            if(off >= line_beg + 4  &&  off - 4 >= raw_skip_until  &&
+               org_is_inline_babel_call(ctx, off - 4, region_end, mark))
+            {
+                mark->beg = off - 4;
+                return true;
+            }
+            ORG_FALLTHROUGH();
+
         case _T('^'):
             if(!(ctx->parser.flags & (ORG_FLAG_SUBSUPERSCRIPTS | ORG_FLAG_SUBSUPERSCRIPTS_BRACED)))
                 return false;
             return org_is_subsup(ctx, off, region_beg, region_end, mark);
 
+        case _T(':'):
+            /* Plain link: Look back for its type, i.e. for a whole word
+             * (not beginning before 'link_skip_until' nor 'raw_skip_until'). */
+            if(!(ctx->parser.flags & ORG_FLAG_NOPLAINLINKS)) {
+                OFF beg = off;
+                OFF beg_min = line_beg;
+                OFF end;
+
+                if(beg_min < link_skip_until)
+                    beg_min = link_skip_until;
+                if(beg_min < raw_skip_until)
+                    beg_min = raw_skip_until;
+                while(beg > beg_min  &&  off - beg < ORG_PLAIN_LINK_TYPE_MAX_LEN  &&  ISALPHA(beg-1))
+                    beg--;
+
+                if(beg < off  &&  (beg == 0  ||  !ISALNUM(beg-1))  &&
+                   org_is_plain_link(ctx, beg, line_end, &end))
+                {
+                    mark->ch = ORG_MARK_PLAIN_LINK_OBJECT;
+                    mark->beg = beg;
+                    mark->end = end;
+                    mark->sub_beg = beg;
+                    mark->sub_end = end;
+                    return true;
+                }
+            }
+            break;
+
+        /* The letters are mark chars only if they start some radio target
+         * and then these have to be tried before the radio link. (Otherwise,
+         * they are detected at the underscore; see above.) */
         case _T('s'):
             if(org_is_inline_src(ctx, off, region_end, mark))
                 return true;
@@ -2995,21 +3044,6 @@ org_is_object(ORG_CTX* ctx, OFF off, OFF region_beg, OFF region_end, OFF line_en
     if(ctx->n_radio_targets > 0  &&  off >= link_skip_until  &&
        org_is_radio_link(ctx, off, region_beg, region_end, mark))
         return true;
-
-    /* Plain link. */
-    if(!(ctx->parser.flags & ORG_FLAG_NOPLAINLINKS)  &&  ISANYOF(off, _T("fhm"))  &&
-       off >= link_skip_until  &&  (off == 0  ||  !ISALNUM(off-1)))
-    {
-        OFF end;
-
-        if(org_is_plain_link(ctx, off, line_end, &end)) {
-            mark->ch = ORG_MARK_PLAIN_LINK_OBJECT;
-            mark->end = end;
-            mark->sub_beg = off;
-            mark->sub_end = end;
-            return true;
-        }
-    }
 
     return false;
 }
@@ -3068,7 +3102,8 @@ org_collect_marks(ORG_CTX* ctx, const ORG_LINE* lines, SZ n_lines)
                 tmp.beg = off;
                 tmp.next = -1;
 
-                if(org_is_object(ctx, off, region_beg, region_end, line->end, link_skip_until, &tmp)) {
+                if(org_is_object(ctx, off, region_beg, region_end, line->beg, line->end,
+                                 link_skip_until, raw_skip_until, &tmp)) {
                     mark = org_push_mark(ctx);
                     if(mark == NULL) {
                         ret = -1;
@@ -3081,7 +3116,12 @@ org_collect_marks(ORG_CTX* ctx, const ORG_LINE* lines, SZ n_lines)
                         link_skip_until = tmp.end;
                     if(org_is_raw_object(tmp.ch))
                         raw_skip_until = tmp.end;
-                    continue;
+
+                    /* If the object begins before 'off' (see org_is_object()),
+                     * 'off' is within its (raw) contents; so it may still be
+                     * an emphasis mark (as any other mark char there). */
+                    if(tmp.beg == off)
+                        continue;
                 }
             }
 
