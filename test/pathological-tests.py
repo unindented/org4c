@@ -16,6 +16,9 @@ pathological = {
     "U+0000":
             ("abc\u0000de\u0000",
             re.compile("abc\ufffd?de\ufffd?")),
+    "U+0000 in emphasis, verbatim and links":
+            ("*a\u0000b* /c\u0000/ =d\u0000e= [[x][f\u0000g]]",
+            re.compile("<b>a\ufffdb</b> <i>c\ufffd</i> <code>d\ufffde</code> <a href=\"#x\">f\ufffdg</a>")),
     "Windows line endings":
             ("* foo\r\nbar\r\nbaz\r\n",
             re.compile("^<h1>foo</h1>\n<p>bar\nbaz</p>")),

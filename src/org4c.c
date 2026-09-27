@@ -621,8 +621,17 @@ org_text_with_null_replacement(ORG_CTX* ctx, ORG_TEXTTYPE type, const CHAR* str,
     int ret = 0;
 
     while(1) {
+#if defined ORG4C_USE_UTF16
         while(off < size  &&  str[off] != _T('\0'))
             off++;
+#else
+        /* Optimization: memchr() is much faster than a plain loop and most
+         * texts contain no NUL at all. */
+        {
+            const CHAR* nul = (const CHAR*) memchr(str, '\0', size);
+            off = (nul != NULL ? (OFF) (nul - str) : size);
+        }
+#endif
 
         if(off > 0) {
             ret = ctx->parser.text(type, str, off, ctx->userdata);
