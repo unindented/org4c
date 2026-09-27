@@ -1,0 +1,69 @@
+# Regressions
+
+This file contains tests for bugs found in ORG4C.
+
+Emphasis at the end of a link description.
+
+```````````````````````````````` example
+[[https://x.org][a *link*]] [[u][*b*]]
+.
+<p><a href="https://x.org">a <b>link</b></a> <a href="#u"><b>b</b></a></p>
+````````````````````````````````
+
+Inline footnote definition with a lone CR as a line break (found by fuzzing:
+heap buffer overflow).
+
+```````````````````````````````` example
+a[fn::bc]
+.
+<p>a<sup><a id="fnr.1" class="footref" href="#fn.1">1</a></sup></p>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes:</h2>
+<div id="text-footnotes">
+<div class="footdef"><sup><a id="fn.1" class="footnum" href="#fnr.1">1</a></sup> <div class="footpara"><p>b
+c</p>
+</div></div>
+</div>
+</div>
+````````````````````````````````
+
+Too deeply nested spans.
+
+```````````````````````````````` example
+****************************************x****************************************
+.
+<p><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b><b>********x********</b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></b></p>
+````````````````````````````````
+
+A caption directly after a table (without any blank line) belongs to the next
+element, not to the table.
+
+```````````````````````````````` example
+#+CAPTION: x
+| a |
+#+caption: c
+#+begin_src
+x
+#+end_src
+.
+<table>
+<caption class="t-above"><span class="table-number">Table 1:</span> x</caption>
+<tbody>
+<tr>
+<td>a</td>
+</tr>
+</tbody>
+</table>
+<label class="org-src-name"><span class="listing-number">Listing 1: </span>c</label><pre><code>x
+</code></pre>
+````````````````````````````````
+
+A huge list item counter is clamped (it used to overflow).
+
+```````````````````````````````` example
+1. [@5000000000] a
+.
+<ol>
+<li value="999999999">a</li>
+</ol>
+````````````````````````````````

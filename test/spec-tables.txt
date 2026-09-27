@@ -1,0 +1,193 @@
+# Tables
+
+A table consists of lines starting with `|`. The cells are separated by
+`|`.
+
+```````````````````````````````` example
+| a | b |
+| c | d |
+.
+<table>
+<tbody>
+<tr>
+<td>a</td>
+<td>b</td>
+</tr>
+<tr>
+<td>c</td>
+<td>d</td>
+</tr>
+</tbody>
+</table>
+````````````````````````````````
+
+The trailing `|` is optional. Missing cells are added.
+
+```````````````````````````````` example
+| a | b
+| c |
+.
+<table>
+<tbody>
+<tr>
+<td>a</td>
+<td>b</td>
+</tr>
+<tr>
+<td>c</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+````````````````````````````````
+
+The rows before the first rule form the header (if there are other rows
+after it).
+
+```````````````````````````````` example
+| h1 | h2 |
+|----+----|
+| a  | b  |
+.
+<table>
+<thead>
+<tr>
+<th>h1</th>
+<th>h2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a</td>
+<td>b</td>
+</tr>
+</tbody>
+</table>
+````````````````````````````````
+
+```````````````````````````````` example
+| a | b |
+|---+---|
+.
+<table>
+<tbody>
+<tr>
+<td>a</td>
+<td>b</td>
+</tr>
+</tbody>
+</table>
+````````````````````````````````
+
+Other rules separate the table bodies.
+
+```````````````````````````````` example
+| h |
+|---|
+| a |
+|---|
+| b |
+.
+<table>
+<thead>
+<tr>
+<th>h</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a</td>
+</tr>
+</tbody>
+<tbody>
+<tr>
+<td>b</td>
+</tr>
+</tbody>
+</table>
+````````````````````````````````
+
+Cells may contain inline markup. The beginning and the end of the cell act
+as a beginning and end of a line.
+
+```````````````````````````````` example
+| *bold* | [[https://example.com][link]] |
+|~code~|=verbatim=|
+.
+<table>
+<tbody>
+<tr>
+<td><b>bold</b></td>
+<td><a href="https://example.com">link</a></td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td><code>verbatim</code></td>
+</tr>
+</tbody>
+</table>
+````````````````````````````````
+
+Alignment cookies. The row containing only the cookies is not exported.
+
+```````````````````````````````` example
+| <l> | <c> | <r10> |
+| a   | b   | c     |
+.
+<table>
+<tbody>
+<tr>
+<td align="left">a</td>
+<td align="center">b</td>
+<td align="right">c</td>
+</tr>
+</tbody>
+</table>
+````````````````````````````````
+
+Tables may be indented, and they may appear in list items.
+
+```````````````````````````````` example
+- item
+  | a |
+  | b |
+.
+<ul>
+<li><p>item</p>
+<table>
+<tbody>
+<tr>
+<td>a</td>
+</tr>
+<tr>
+<td>b</td>
+</tr>
+</tbody>
+</table>
+</li>
+</ul>
+````````````````````````````````
+
+A table ends at the first line which does not start with `|`.
+
+```````````````````````````````` example
+| a |
+foo
+| b |
+.
+<table>
+<tbody>
+<tr>
+<td>a</td>
+</tr>
+</tbody>
+</table>
+<p>foo</p>
+<table>
+<tbody>
+<tr>
+<td>b</td>
+</tr>
+</tbody>
+</table>
+````````````````````````````````

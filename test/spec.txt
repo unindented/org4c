@@ -1,0 +1,1646 @@
+# ORG4C Specification
+
+This file documents (and tests) how ORG4C parses the Org syntax and how
+`org2html` renders it. The Org syntax itself is described in the document
+"Org Syntax" (https://orgmode.org/worg/org-syntax.html); ORG4C tries to
+follow it and to behave the same way as Emacs `org-element` parser does.
+
+The HTML output resembles the output of Emacs `ox-html` exporter, but it is
+intentionally simpler: No generated `id` attributes (e.g. of headlines), no
+`<div class="outline-N">` wrappers and so on.
+
+Each example consists of the Org input, a line with a single dot, and the
+expected HTML output; optionally followed by another line with a single dot
+and the command line options of `org2html` to use. (Tabs are shown as `→`.)
+
+# Headlines
+
+A headline is a line starting with one or more stars, followed by a space.
+The count of stars is its level.
+
+```````````````````````````````` example
+* Level 1
+** Level 2
+*** Level 3
+.
+<h1>Level 1</h1>
+<h2>Level 2</h2>
+<h3>Level 3</h3>
+````````````````````````````````
+
+Levels deeper than 6 are rendered as `<h6>`.
+
+```````````````````````````````` example
+******* Level 7
+.
+<h6>Level 7</h6>
+````````````````````````````````
+
+With `ORG_HTML_FLAG_TOPLEVEL_H2`, a headline of level N is rendered as
+`<hN+1>` (still capped at `<h6>`), as ox-html does, so that `<h1>` is left
+for the document title.
+
+```````````````````````````````` example
+* Level 1
+** Level 2
+*** Level 3
+**** Level 4
+***** Level 5
+****** Level 6
+.
+<h2>Level 1</h2>
+<h3>Level 2</h3>
+<h4>Level 3</h4>
+<h5>Level 4</h5>
+<h6>Level 5</h6>
+<h6>Level 6</h6>
+.
+--ftoplevel-h2
+````````````````````````````````
+
+The title of an inline task is not affected.
+
+```````````````````````````````` example
+* Head
+*************** Task
+.
+<h2>Head</h2>
+<div class="inlinetask">
+<b>Task</b><br>
+</div>
+.
+--ftoplevel-h2 --finlinetasks
+````````````````````````````````
+
+The stars must be at the very beginning of the line and they must be
+followed by a space:
+
+```````````````````````````````` example
+*Not a headline
+ **Not a headline either
+.
+<p>*Not a headline
+**Not a headline either</p>
+````````````````````````````````
+
+A headline may start with a TODO keyword (`TODO` or `DONE`), then a priority
+cookie, and it may end with tags.
+
+```````````````````````````````` example
+* TODO [#A] Write the spec :work:urgent:
+* DONE Done
+.
+<h1><span class="todo TODO">TODO</span> <span class="priority">[A]</span> Write the spec&#xa0;&#xa0;&#xa0;<span class="tag"><span class="work">work</span>&#xa0;<span class="urgent">urgent</span></span></h1>
+<h1><span class="done DONE">DONE</span> Done</h1>
+````````````````````````````````
+
+```````````````````````````````` example
+* TODOs are not a keyword
+* [#B] Just priority
+* Title :not:tags: here
+.
+<h1>TODOs are not a keyword</h1>
+<h1><span class="priority">[B]</span> Just priority</h1>
+<h1>Title :not:tags: here</h1>
+````````````````````````````````
+
+The TODO keywords can be customized by `#+TODO:` (or `#+SEQ_TODO:`,
+`#+TYP_TODO:`). The keywords after `|` are the "done" ones; if there is no
+`|`, only the last keyword is. Then `TODO` and `DONE` are not keywords
+anymore (unless listed).
+
+```````````````````````````````` example
+#+TODO: NEXT(n) | FINISHED(f!) CANCELED
+#+TYP_TODO: WAIT
+* NEXT a
+* FINISHED b
+* CANCELED c
+* WAIT d
+* TODO e
+.
+<h1><span class="todo NEXT">NEXT</span> a</h1>
+<h1><span class="done FINISHED">FINISHED</span> b</h1>
+<h1><span class="done CANCELED">CANCELED</span> c</h1>
+<h1><span class="done WAIT">WAIT</span> d</h1>
+<h1>TODO e</h1>
+````````````````````````````````
+
+The title may contain any inline markup.
+
+```````````````````````````````` example
+* Some /emphasis/ and a [[https://example.com][link]]
+.
+<h1>Some <i>emphasis</i> and a <a href="https://example.com">link</a></h1>
+````````````````````````````````
+
+Empty headline.
+
+```````````````````````````````` example
+* 
+.
+<h1></h1>
+````````````````````````````````
+
+Headlines starting with the keyword `COMMENT`, as well as headlines tagged
+`noexport`, are not exported, together with all their contents (including
+their subsections).
+
+```````````````````````````````` example
+* Visible
+* COMMENT Hidden
+secret
+** Hidden subsection
+* Hidden too :noexport:
+secret
+* Visible again
+.
+<h1>Visible</h1>
+<h1>Visible again</h1>
+````````````````````````````````
+
+With `ORG_FLAG_SKIPCOMMENTED` and `ORG_FLAG_SKIPNOEXPORT` (which `org_html()`
+always uses), such subtrees are not reported at all. That matters e.g. for
+the footnotes referenced only from them.
+
+```````````````````````````````` example
+A[fn:1]
+* COMMENT Hidden
+B[fn:2]
+
+[fn:1] One.
+[fn:2] Two.
+.
+<p>A<sup><a id="fnr.1" class="footref" href="#fn.1">1</a></sup></p>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes:</h2>
+<div id="text-footnotes">
+<div class="footdef"><sup><a id="fn.1" class="footnum" href="#fnr.1">1</a></sup> <div class="footpara"><p>One.</p>
+</div></div>
+</div>
+</div>
+````````````````````````````````
+
+With `ORG_FLAG_INLINETASKS`, headlines of level 15 or deeper are inline
+tasks, optionally terminated with a line `*************** END`.
+
+```````````````````````````````` example
+* Head
+*************** TODO Task :tag:
+Body
+*************** END
+Text
+*************** One-line task
+.
+<h1>Head</h1>
+<div class="inlinetask">
+<b><span class="todo TODO">TODO</span> Task&#xa0;&#xa0;&#xa0;<span class="tag"><span class="tag">tag</span></span></b><br>
+<p>Body</p>
+</div>
+<p>Text</p>
+<div class="inlinetask">
+<b>One-line task</b><br>
+</div>
+.
+--finlinetasks
+````````````````````````````````
+
+# Planning and Property Drawers
+
+A planning line (`SCHEDULED:`, `DEADLINE:`, `CLOSED:`) directly following a
+headline, and a property drawer directly following the headline (or its
+planning line), are not exported.
+
+```````````````````````````````` example
+* Task
+SCHEDULED: <2024-01-01 Mon>
+:PROPERTIES:
+:ID: 1234
+:END:
+Body.
+.
+<h1>Task</h1>
+<p>Body.</p>
+````````````````````````````````
+
+Elsewhere, it is just a normal text (or a normal drawer).
+
+```````````````````````````````` example
+SCHEDULED: <2024-01-01 Mon>
+:PROPERTIES:
+:ID: 1234
+:END:
+.
+<p>SCHEDULED: <span class="timestamp-wrapper"><span class="timestamp">&lt;2024-01-01 Mon&gt;</span></span></p>
+<p>:ID: 1234</p>
+````````````````````````````````
+
+# Paragraphs
+
+Consecutive lines of text form a paragraph. Paragraphs are separated by blank
+lines or by any other element.
+
+```````````````````````````````` example
+aaa
+bbb
+
+ccc
+.
+<p>aaa
+bbb</p>
+<p>ccc</p>
+````````````````````````````````
+
+```````````````````````````````` example
+  aaa
+    bbb
+.
+<p>aaa
+bbb</p>
+````````````````````````````````
+
+```````````````````````````````` example
+aaa
+* Headline
+bbb
+.
+<p>aaa</p>
+<h1>Headline</h1>
+<p>bbb</p>
+````````````````````````````````
+
+Hard line break is written as `\\` at the end of a line.
+
+```````````````````````````````` example
+foo\\
+bar
+.
+<p>foo<br>
+bar</p>
+````````````````````````````````
+
+```````````````````````````````` example
+foo \\
+bar\\
+.
+<p>foo <br>
+bar</p>
+````````````````````````````````
+
+```````````````````````````````` example
+foo\\\
+bar
+.
+<p>foo\\\
+bar</p>
+````````````````````````````````
+
+Special strings: As `ox-html` does, `org2html` renders `--` as an en dash,
+`---` as an em dash, `...` as an ellipsis and `\-` as a soft hyphen. (This
+can be disabled.)
+
+```````````````````````````````` example
+a -- b --- c ... d\-e
+.
+<p>a &ndash; b &mdash; c &hellip; d&shy;e</p>
+````````````````````````````````
+
+The dashes have to be followed by a character other than `-`, or by the end
+of line; so e.g. not by an object, nor by the end of a table cell or of a
+headline.
+
+```````````````````````````````` example
+a--
+b---
+c----
+d--*e* f--\alpha
+
+| g-- |
+.
+<p>a&ndash;
+b&mdash;
+c-&mdash;
+d--<b>e</b> f--&alpha;</p>
+<table>
+<tbody>
+<tr>
+<td>g--</td>
+</tr>
+</tbody>
+</table>
+````````````````````````````````
+
+```````````````````````````````` example
+a --\\
+b
+.
+<p>a --<br>
+b</p>
+````````````````````````````````
+
+```````````````````````````````` example
+a -- b --- c ... d\-e
+.
+<p>a -- b --- c ... d\-e</p>
+.
+--fverbatim-special-strings
+````````````````````````````````
+
+# Emphasis and Monospace
+
+Org recognizes these kinds of emphasis:
+
+```````````````````````````````` example
+*bold* /italic/ _underline_ +strike-through+ =verbatim= ~code~
+.
+<p><b>bold</b> <i>italic</i> <span class="underline">underline</span> <del>strike-through</del> <code>verbatim</code> <code>code</code></p>
+````````````````````````````````
+
+The opening marker has to be preceded by a whitespace, one of `-({'"`, or
+the beginning of the line; and it has to be followed by a non-whitespace.
+The closing marker has to be preceded by a non-whitespace, and followed by a
+whitespace, one of `-.,;:!?')}["\`, or the end of line.
+
+```````````````````````````````` example
+2*3*4 a/b/c snake_case_name 1+2+3 a=b=c
+.
+<p>2*3*4 a/b/c snake_case_name 1+2+3 a=b=c</p>
+````````````````````````````````
+
+```````````````````````````````` example
+(*bold*) -/italic/- '_u_' "=v="
+.
+<p>(<b>bold</b>) -<i>italic</i>- &#x27;<span class="underline">u</span>&#x27; &quot;<code>v</code>&quot;</p>
+````````````````````````````````
+
+```````````````````````````````` example
+*bold*, /italic/. _u_; +s+: =v=! ~c~?
+.
+<p><b>bold</b>, <i>italic</i>. <span class="underline">u</span>; <del>s</del>: <code>v</code>! <code>c</code>?</p>
+````````````````````````````````
+
+```````````````````````````````` example
+a * not bold * b
+.
+<p>a * not bold * b</p>
+````````````````````````````````
+
+Org does not use the CommonMark's delimiter-run algorithm. A span is formed
+by an opening marker and the nearest possible closing marker of the same
+kind, regardless of any other markers in between.
+
+```````````````````````````````` example
+*a *b* c*
+.
+<p><b>a *b</b> c*</p>
+````````````````````````````````
+
+```````````````````````````````` example
+/a *b/ c*
+.
+<p><i>a *b</i> c*</p>
+````````````````````````````````
+
+```````````````````````````````` example
+*a*b* and *a *b*
+.
+<p><b>a*b</b> and <b>a *b</b></p>
+````````````````````````````````
+
+The contents of verbatim and code is not parsed.
+
+```````````````````````````````` example
+=a *b= c* ~*x* /y/~
+.
+<p><code>a *b</code> c* <code>*x* /y/</code></p>
+````````````````````````````````
+
+The contents of other spans is parsed as if it were a stand-alone text:
+Its beginning and end act as a beginning and end of a line.
+
+```````````````````````````````` example
+**x** and */x/*
+.
+<p><b><b>x</b></b> and <b><i>x</i></b></p>
+````````````````````````````````
+
+```````````````````````````````` example
+*bold /italic _underline_/*
+.
+<p><b>bold <i>italic <span class="underline">underline</span></i></b></p>
+````````````````````````````````
+
+Emphasis may span over multiple lines of a paragraph.
+
+```````````````````````````````` example
+*multi
+line* bold
+.
+<p><b>multi
+line</b> bold</p>
+````````````````````````````````
+
+The contents must not be empty.
+
+```````````````````````````````` example
+a ** b == c ~~ d
+.
+<p>a ** b == c ~~ d</p>
+````````````````````````````````
+
+# Entities
+
+Org entities (see the variable `org-entities` in Emacs) are written as
+`\name`, optionally followed by `{}` (which allows gluing them to the
+following text).
+
+```````````````````````````````` example
+\alpha \alpha{}beta \to \copy{} \nbsp{} \there4 \frac12
+.
+<p>&alpha; &alpha;beta &rarr; &copy; &nbsp; &there4; &frac12;</p>
+````````````````````````````````
+
+`\_` followed by spaces is a (non-breaking) white space.
+
+```````````````````````````````` example
+a\_  b
+.
+<p>a&ensp;&ensp;b</p>
+````````````````````````````````
+
+Unknown names are not entities (they are LaTeX fragments, see below).
+
+```````````````````````````````` example
+\notanentity
+.
+<p>\notanentity</p>
+````````````````````````````````
+
+LaTeX fragments are passed to the output (so they may be processed by
+e.g. MathJax). As `ox-html` does, `$...$` is converted to `\(...\)` and
+`$$...$$` to `\[...\]`.
+
+```````````````````````````````` example
+\(a < b\) \[x^2\] $y$ $$z$$ \frac{1}{2} \cmd*[opt]{arg}
+.
+<p>\(a &lt; b\) \[x^2\] \(y\) \[z\] \frac{1}{2} \cmd*[opt]{arg}</p>
+````````````````````````````````
+
+The rules for `$` are strict: The contents must not begin with a whitespace
+(nor `,.;`), must not end with a whitespace (nor `,.`), and the closing `$`
+must not be followed by an alphanumeric character.
+
+```````````````````````````````` example
+$5 and $10, $ a$, $a $, $x$y, $x$.
+.
+<p>$5 and $10, $ a$, $a $, $x$y, \(x\).</p>
+````````````````````````````````
+
+```````````````````````````````` example
+LaTeX can be disabled: $x$ \(y\) \alpha
+.
+<p>LaTeX can be disabled: $x$ \(y\) &alpha;</p>
+.
+--fno-latex
+````````````````````````````````
+
+LaTeX environments.
+
+```````````````````````````````` example
+\begin{equation}
+  x = 1
+\end{equation}
+.
+\begin{equation}
+  x = 1
+\end{equation}
+````````````````````````````````
+
+```````````````````````````````` example
+\begin{equation}
+no end
+.
+<p>\begin{equation}
+no end</p>
+````````````````````````````````
+
+# Timestamps
+
+Active (`<...>`) and inactive (`[...]`) timestamps, including ranges.
+
+```````````````````````````````` example
+<2024-01-31 Wed> [2024-01-31 Wed 10:00] <2024-01-01 Mon>--<2024-01-03 Wed> <2024-01-01 Mon 10:00-11:00 +1w>
+.
+<p><span class="timestamp-wrapper"><span class="timestamp">&lt;2024-01-31 Wed&gt;</span></span> <span class="timestamp-wrapper"><span class="timestamp">[2024-01-31 Wed 10:00]</span></span> <span class="timestamp-wrapper"><span class="timestamp">&lt;2024-01-01 Mon&gt;&ndash;&lt;2024-01-03 Wed&gt;</span></span> <span class="timestamp-wrapper"><span class="timestamp">&lt;2024-01-01 Mon 10:00-11:00 +1w&gt;</span></span></p>
+````````````````````````````````
+
+```````````````````````````````` example
+<2024-1-31> [2024-01-31 no end
+.
+<p>&lt;2024-1-31&gt; [2024-01-31 no end</p>
+````````````````````````````````
+
+# Other Objects
+
+Statistics cookies.
+
+```````````````````````````````` example
+* Tasks [1/3] [33%]
+.
+<h1>Tasks <code>[1/3]</code> <code>[33%]</code></h1>
+````````````````````````````````
+
+Targets. They are the targets of the fuzzy links.
+
+```````````````````````````````` example
+<<here>> and [[here][a link to it]]
+.
+<p><a id="here"></a> and <a href="#here">a link to it</a></p>
+````````````````````````````````
+
+Export snippets. Only the ones for HTML are rendered.
+
+```````````````````````````````` example
+@@html:<kbd>@@Ctrl@@html:</kbd>@@ @@latex:\LaTeX@@
+.
+<p><kbd>Ctrl</kbd> </p>
+````````````````````````````````
+
+Inline source blocks.
+
+```````````````````````````````` example
+src_python{print(1)} and src_sh[:exports code]{ls -l}
+.
+<p><code class="src src-python">print(1)</code> and <code class="src src-sh">ls -l</code></p>
+````````````````````````````````
+
+# Macros
+
+Macros are defined by `#+MACRO: name template` (the first definition wins),
+where `$1`, `$2`, ... are replaced by the arguments. The expansion is parsed
+as an Org text.
+
+```````````````````````````````` example
+#+MACRO: greet Hello, *$1* and $2!
+{{{greet(World, Bob)}}} {{{greet(a\, b)}}} {{{greet}}}
+.
+<p>Hello, <b>World</b> and  Bob! Hello, <b>a, b</b> and ! Hello, ** and !</p>
+````````````````````````````````
+
+Whitespace in the arguments is collapsed; an odd count of backslashes
+escapes the comma.
+
+```````````````````````````````` example
+#+MACRO: m [$1|$2]
+{{{m(  a  b ,
+ c)}}} {{{m(a\\,b)}}}
+.
+<p>[a b | c] [a\|b]</p>
+````````````````````````````````
+
+Macros may use other macros.
+
+```````````````````````````````` example
+#+MACRO: inner <$1>
+#+MACRO: outer ({{{inner($1)}}})
+{{{outer(x)}}}
+.
+<p>(&lt;x&gt;)</p>
+````````````````````````````````
+
+Built-in macros: `title`, `author`, `email`, `date`, `keyword(NAME)` and the
+counter `n` (`n(name)`, `n(name,-)` to just show it, `n(name,5)` to set it,
+`n(name,reset)` to reset it). The macros `time`, `property`, `input-file` and
+`modification-time` are not supported and expand to nothing.
+
+```````````````````````````````` example
+#+TITLE: The /Title/
+#+AUTHOR: Me
+{{{title}}} by {{{author}}}, {{{keyword(AUTHOR)}}}. {{{n}}} {{{n}}} {{{n(x,5)}}} {{{n(x)}}} {{{n(x,-)}}} {{{n(x,reset)}}} {{{time(%Y)}}}
+.
+<p>The <i>Title</i> by Me, Me. 1 2 5 6 6 1 </p>
+````````````````````````````````
+
+Unknown macros, as well as the macros defined by an `(eval ...)` template
+(ORG4C cannot evaluate Emacs Lisp), are kept as they are.
+
+```````````````````````````````` example
+#+MACRO: ev (eval (upcase $1))
+{{{unknown(x)}}} {{{ev(y)}}}
+.
+<p>{{{unknown(x)}}} {{{ev(y)}}}</p>
+````````````````````````````````
+
+# Radio Targets
+
+Radio target `<<<text>>>` makes all the occurrences of its text (as a whole
+word, case-insensitively) links to it.
+
+```````````````````````````````` example
+A <<<radio target>>> here.
+
+The radio target, the Radio
+Target, not radio targets.
+.
+<p>A <a id="radio target">radio target</a> here.</p>
+<p>The <a href="#radio%20target">radio target</a>, the <a href="#radio%20target">Radio
+Target</a>, not radio targets.</p>
+````````````````````````````````
+
+# Citations
+
+Citations are rendered as their keys (ORG4C has no citation processor).
+
+```````````````````````````````` example
+[cite:@smith2020] [cite/t:see @doe p. 5; @roe] [cite:global; @a; @b; end]
+.
+<p><span class="citation">(<cite>smith2020</cite>)</span> <span class="citation">(see <cite>doe</cite> p. 5; <cite>roe</cite>)</span> <span class="citation">(global <cite>a</cite>; <cite>b</cite> end)</span></p>
+````````````````````````````````
+
+```````````````````````````````` example
+[cite:no key] [cite:@a
+.
+<p>[cite:no key] [cite:@a</p>
+````````````````````````````````
+
+# Inline Babel Calls
+
+ORG4C never evaluates any code, so inline Babel calls produce nothing.
+
+```````````````````````````````` example
+Result: call_square(4) and call_f[:x 1](2)[:results raw].
+.
+<p>Result:  and .</p>
+````````````````````````````````
+
+# Links
+
+A bracket link has the form `[[TARGET][DESCRIPTION]]` or `[[TARGET]]`.
+
+```````````````````````````````` example
+[[https://example.com][Example]] and [[https://example.com]]
+.
+<p><a href="https://example.com">Example</a> and <a href="https://example.com">https://example.com</a></p>
+````````````````````````````````
+
+The description may contain inline markup.
+
+```````````````````````````````` example
+[[https://example.com][*bold* /italic/ and ~code~]]
+.
+<p><a href="https://example.com"><b>bold</b> <i>italic</i> and <code>code</code></a></p>
+````````````````````````````````
+
+Links to files. Links to Org files are converted to links to the exported
+HTML files.
+
+```````````````````````````````` example
+[[file:notes.txt][notes]] [[file:other.org][other]] [[file:other.org::*Heading][heading]] [[./rel.org]]
+.
+<p><a href="notes.txt">notes</a> <a href="other.html">other</a> <a href="other.html">heading</a> <a href="./rel.html">./rel.org</a></p>
+````````````````````````````````
+
+Links without a description pointing to an image are rendered as the
+image. A paragraph consisting only of such an image is a figure.
+
+```````````````````````````````` example
+[[file:image.png]]
+
+Text [[file:image.png]].
+.
+<div class="figure">
+<p><img src="image.png" alt="image.png">
+</p>
+</div>
+<p>Text <img src="image.png" alt="image.png">.</p>
+````````````````````````````````
+
+```````````````````````````````` example
+[[file:image.png]] [[https://example.com/pic.JPG]] [[file:image.png][not an image]]
+.
+<p><img src="image.png" alt="image.png"> <img src="https://example.com/pic.JPG" alt="pic.JPG"> <a href="image.png">not an image</a></p>
+````````````````````````````````
+
+Internal links.
+
+```````````````````````````````` example
+[[#custom-id][by custom id]] [[id:1234][by id]] [[*Some Heading]] [[target]]
+.
+<p><a href="#custom-id">by custom id</a> <a href="#ID-1234">by id</a> <a href="#Some%20Heading">*Some Heading</a> <a href="#target">target</a></p>
+````````````````````````````````
+
+Other link types.
+
+```````````````````````````````` example
+[[mailto:me@example.com][mail]] [[doi:10.1000/182][doi]] [[foo:bar]]
+.
+<p><a href="mailto:me@example.com">mail</a> <a href="https://doi.org/10.1000/182">doi</a> <a href="#foo:bar">foo:bar</a></p>
+````````````````````````````````
+
+Angle links.
+
+```````````````````````````````` example
+<https://example.com/a b> <mailto:me@example.com> <notalink>
+.
+<p><a href="https://example.com/a%20b">https://example.com/a b</a> <a href="mailto:me@example.com">mailto:me@example.com</a> &lt;notalink&gt;</p>
+````````````````````````````````
+
+Plain links are recognized without the brackets (for some well-known link
+types). Trailing punctuation is not a part of the link.
+
+```````````````````````````````` example
+See https://example.com/path?a=1. Or mailto:me@example.com, or ftp://x.org/!
+.
+<p>See <a href="https://example.com/path?a=1">https://example.com/path?a=1</a>. Or <a href="mailto:me@example.com">mailto:me@example.com</a>, or <a href="ftp://x.org/">ftp://x.org/</a>!</p>
+````````````````````````````````
+
+```````````````````````````````` example
+xhttps://example.com (no link) and [[https://a.com][https://b.com]]
+.
+<p>xhttps://example.com (no link) and <a href="https://a.com">https://b.com</a></p>
+````````````````````````````````
+
+```````````````````````````````` example
+Plain links can be disabled: https://example.com
+.
+<p>Plain links can be disabled: https://example.com</p>
+.
+--fno-plain-links
+````````````````````````````````
+
+Unterminated or malformed links are just text.
+
+```````````````````````````````` example
+[[foo] and [[]] and [[a[b]]
+.
+<p>[[foo] and [[]] and [[a[b]]</p>
+````````````````````````````````
+
+The description is anything up to the first `]]`.
+
+```````````````````````````````` example
+[[a][b] c]]
+.
+<p><a href="#a">b] c</a></p>
+````````````````````````````````
+
+# Plain Lists
+
+A list item starts with a bullet (`-`, `+` or `*`) or an ordered bullet
+(e.g. `1.` or `1)`), followed by a whitespace. (The bullet `*` is recognized
+only if indented, otherwise it would be a headline.)
+
+```````````````````````````````` example
+- foo
+- bar
+.
+<ul>
+<li>foo</li>
+<li>bar</li>
+</ul>
+````````````````````````````````
+
+```````````````````````````````` example
++ foo
++ bar
+.
+<ul>
+<li>foo</li>
+<li>bar</li>
+</ul>
+````````````````````````````````
+
+```````````````````````````````` example
+  * foo
+  * bar
+.
+<ul>
+<li>foo</li>
+<li>bar</li>
+</ul>
+````````````````````````````````
+
+```````````````````````````````` example
+1. foo
+2. bar
+.
+<ol>
+<li>foo</li>
+<li>bar</li>
+</ol>
+````````````````````````````````
+
+```````````````````````````````` example
+1) foo
+2) bar
+.
+<ol>
+<li>foo</li>
+<li>bar</li>
+</ol>
+````````````````````````````````
+
+The type of the list is determined by its first item.
+
+```````````````````````````````` example
+- foo
+1. bar
+.
+<ul>
+<li>foo</li>
+<li>bar</li>
+</ul>
+````````````````````````````````
+
+The contents of the item has to be indented more than its bullet.
+
+```````````````````````````````` example
+- foo
+  bar
+baz
+.
+<ul>
+<li>foo
+bar</li>
+</ul>
+<p>baz</p>
+````````````````````````````````
+
+```````````````````````````````` example
+- foo
+  - bar
+    baz
+  qux
+- quux
+.
+<ul>
+<li><p>foo</p>
+<ul>
+<li>bar
+baz</li>
+</ul>
+<p>qux</p>
+</li>
+<li>quux</li>
+</ul>
+````````````````````````````````
+
+A paragraph is not wrapped in `<p>` if it is the only contents of the item
+(ignoring its sub-list).
+
+```````````````````````````````` example
+- foo
+
+  bar
+- baz
+  - sub
+.
+<ul>
+<li><p>foo</p>
+<p>bar</p>
+</li>
+<li>baz<ul>
+<li>sub</li>
+</ul>
+</li>
+</ul>
+````````````````````````````````
+
+A single blank line does not end the list, but two consecutive blank lines
+do.
+
+```````````````````````````````` example
+- foo
+
+- bar
+
+
+- baz
+.
+<ul>
+<li>foo</li>
+<li>bar</li>
+</ul>
+<ul>
+<li>baz</li>
+</ul>
+````````````````````````````````
+
+Checkboxes and counters.
+
+```````````````````````````````` example
+- [ ] todo
+- [X] done
+- [-] partial
+.
+<ul>
+<li class="off"><code>[&#xa0;]</code> todo</li>
+<li class="on"><code>[X]</code> done</li>
+<li class="trans"><code>[-]</code> partial</li>
+</ul>
+````````````````````````````````
+
+```````````````````````````````` example
+1. foo
+2. [@5] bar
+3. [@7] [X] baz
+.
+<ol>
+<li>foo</li>
+<li value="5">bar</li>
+<li class="on" value="7"><code>[X]</code> baz</li>
+</ol>
+````````````````````````````````
+
+Description lists.
+
+```````````````````````````````` example
+- term :: definition
+- [X] term 2 :: definition 2
+  more
+- :: no term
+.
+<dl>
+<dt>term</dt>
+<dd>definition</dd>
+<dt class="on"><code>[X]</code> term 2</dt>
+<dd>definition 2
+more</dd>
+<dt></dt>
+<dd>:: no term</dd>
+</dl>
+````````````````````````````````
+
+The last `::` separates the term.
+
+```````````````````````````````` example
+- a :: b :: c
+.
+<dl>
+<dt>a :: b</dt>
+<dd>c</dd>
+</dl>
+````````````````````````````````
+
+Empty items.
+
+```````````````````````````````` example
+-
+- [ ]
+.
+<ul>
+<li></li>
+<li class="off"><code>[&#xa0;]</code> </li>
+</ul>
+````````````````````````````````
+
+Lists interrupt paragraphs and vice versa.
+
+```````````````````````````````` example
+foo
+- bar
+baz
+.
+<p>foo</p>
+<ul>
+<li>bar</li>
+</ul>
+<p>baz</p>
+````````````````````````````````
+
+Elements inside the list items. Note the lines of a block are not affected
+by the indentation.
+
+```````````````````````````````` example
+- item
+  #+begin_quote
+quoted
+  #+end_quote
+- next
+.
+<ul>
+<li><p>item</p>
+<blockquote>
+<p>quoted</p>
+</blockquote>
+</li>
+<li>next</li>
+</ul>
+````````````````````````````````
+
+```````````````````````````````` example
+- item
+  #+begin_src sh
+echo hello
+  #+end_src
+.
+<ul>
+<li><p>item</p>
+<pre><code class="language-sh">echo hello
+</code></pre>
+</li>
+</ul>
+````````````````````````````````
+
+# Blocks
+
+Source blocks. The common indentation is removed.
+
+```````````````````````````````` example
+#+begin_src python :results output
+  def f():
+      return 1
+#+end_src
+.
+<pre><code class="language-python">def f():
+    return 1
+</code></pre>
+````````````````````````````````
+
+```````````````````````````````` example
+#+BEGIN_SRC
+no language
+#+END_SRC
+.
+<pre><code>no language
+</code></pre>
+````````````````````````````````
+
+The header argument `:exports` is respected. As ORG4C never evaluates the
+code, `:exports results` exports nothing (the same as `:exports none`).
+
+```````````````````````````````` example
+#+begin_src sh :exports none
+secret
+#+end_src
+#+begin_src sh :exports results
+ls
+#+end_src
+#+begin_src sh :exports code
+ls
+#+end_src
+.
+<pre><code class="language-sh">ls
+</code></pre>
+````````````````````````````````
+
+Line numbers: `-n` (optionally with the first number), `+n` to continue
+the numbering of the previous numbered block.
+
+```````````````````````````````` example
+#+begin_src sh -n
+echo a
+echo b
+#+end_src
+#+begin_src sh +n
+echo c
+#+end_src
+#+begin_example -n 9
+x
+y
+#+end_example
+.
+<pre><code class="language-sh"><span class="linenr">1: </span>echo a
+<span class="linenr">2: </span>echo b
+</code></pre>
+<pre><code class="language-sh"><span class="linenr">3: </span>echo c
+</code></pre>
+<pre class="example"><span class="linenr"> 9: </span>x
+<span class="linenr">10: </span>y
+</pre>
+````````````````````````````````
+
+Code references: A label `(ref:name)` at the end of a line (the format may
+be changed by `-l`). The switch `-r` removes the labels; the links to them
+then show the line numbers.
+
+```````````````````````````````` example
+#+begin_src sh -n
+echo a (ref:first)
+echo b
+#+end_src
+#+begin_src sh -n 10 -r -l "[%s]"
+x [second]
+#+end_src
+See [[(first)]], [[(second)]] and [[(first)][this]].
+.
+<pre><code class="language-sh"><span id="coderef-first" class="coderef-off"><span class="linenr">1: </span>echo a (first)</span>
+<span class="linenr">2: </span>echo b
+</code></pre>
+<pre><code class="language-sh"><span id="coderef-second" class="coderef-off"><span class="linenr">10: </span>x</span>
+</code></pre>
+<p>See <a href="#coderef-first" class="coderef">first</a>, <a href="#coderef-second" class="coderef">10</a> and <a href="#coderef-first" class="coderef">this</a>.</p>
+````````````````````````````````
+
+Lines starting with `*` or `#+` are escaped with a comma in the source
+blocks. The comma is removed.
+
+```````````````````````````````` example
+#+begin_src org
+,* Headline
+,#+begin_src
+,,* Still escaped
+, no escape
+#+end_src
+.
+<pre><code class="language-org">* Headline
+#+begin_src
+,* Still escaped
+, no escape
+</code></pre>
+````````````````````````````````
+
+The block names are case-insensitive, but `#+END_name` has to match the
+name of the block.
+
+```````````````````````````````` example
+#+Begin_Example
+<b>x</b>
+#+eNd_eXaMpLe
+.
+<pre class="example">&lt;b&gt;x&lt;/b&gt;
+</pre>
+````````````````````````````````
+
+If there is no matching `#+END_name`, it is not a block.
+
+```````````````````````````````` example
+#+begin_src
+code
+#+end_example
+.
+<p>#+begin_src
+code
+#+end_example</p>
+````````````````````````````````
+
+Blocks cannot span over a headline.
+
+```````````````````````````````` example
+#+begin_src
+code
+* Headline
+#+end_src
+.
+<p>#+begin_src
+code</p>
+<h1>Headline</h1>
+<p>#+end_src</p>
+````````````````````````````````
+
+Example blocks.
+
+```````````````````````````````` example
+#+begin_example
+  foo
+    bar
+#+end_example
+.
+<pre class="example">foo
+  bar
+</pre>
+````````````````````````````````
+
+Quote and center blocks contain other elements.
+
+```````````````````````````````` example
+#+begin_quote
+foo /bar/
+
+- baz
+#+end_quote
+.
+<blockquote>
+<p>foo <i>bar</i></p>
+<ul>
+<li>baz</li>
+</ul>
+</blockquote>
+````````````````````````````````
+
+```````````````````````````````` example
+#+begin_center
+centered
+#+end_center
+.
+<div class="org-center">
+<p>centered</p>
+</div>
+````````````````````````````````
+
+Nested blocks.
+
+```````````````````````````````` example
+#+begin_quote
+#+begin_center
+foo
+#+end_center
+#+end_quote
+.
+<blockquote>
+<div class="org-center">
+<p>foo</p>
+</div>
+</blockquote>
+````````````````````````````````
+
+Verse blocks keep the line breaks and the relative indentation.
+
+```````````````````````````````` example
+#+begin_verse
+  Roses are red,
+    violets are blue.
+
+  The end.
+#+end_verse
+.
+<p class="verse">Roses are red,<br>
+&#xa0;&#xa0;violets are blue.<br>
+<br>
+The end.</p>
+````````````````````````````````
+
+Special blocks (any other name) are rendered as `<div>` with the class of
+the block name.
+
+```````````````````````````````` example
+#+begin_note
+Some *note*.
+#+end_note
+.
+<div class="note">
+<p>Some <b>note</b>.</p>
+</div>
+````````````````````````````````
+
+Export blocks are passed to the output verbatim, if they are meant for
+HTML. Others are ignored.
+
+```````````````````````````````` example
+#+begin_export html
+<b>raw</b>
+#+end_export
+#+begin_export latex
+\LaTeX
+#+end_export
+.
+<b>raw</b>
+````````````````````````````````
+
+```````````````````````````````` example
+#+begin_export html
+<b>raw</b>
+#+end_export
+.
+.
+--fno-export-blocks
+````````````````````````````````
+
+Dynamic blocks. The contents is rendered as it is.
+
+```````````````````````````````` example
+#+BEGIN: clocktable :scope file
+| a |
+Text
+#+END:
+
+#+BEGIN: unterminated
+.
+<table>
+<tbody>
+<tr>
+<td>a</td>
+</tr>
+</tbody>
+</table>
+<p>Text</p>
+<p>#+BEGIN: unterminated</p>
+````````````````````````````````
+
+Comment blocks are not exported.
+
+```````````````````````````````` example
+#+begin_comment
+secret
+#+end_comment
+visible
+.
+<p>visible</p>
+````````````````````````````````
+
+# Drawers
+
+Drawers are exported without any wrapper. (LOGBOOK drawers are not exported
+at all.)
+
+```````````````````````````````` example
+:MYDRAWER:
+foo
+:END:
+:LOGBOOK:
+- State "DONE"
+:END:
+.
+<p>foo</p>
+````````````````````````````````
+
+Without `:END:`, it is not a drawer.
+
+```````````````````````````````` example
+:FOO:
+bar
+.
+<p>:FOO:
+bar</p>
+````````````````````````````````
+
+# Keywords and Comments
+
+Keywords are not exported.
+
+```````````````````````````````` example
+#+TITLE: The Title
+#+OPTIONS: toc:nil
+Text
+.
+<p>Text</p>
+````````````````````````````````
+
+Comment lines start with `#` followed by a space (or the end of line).
+
+```````````````````````````````` example
+# comment
+  # indented comment
+#
+text
+#not a comment
+.
+<p>text
+#not a comment</p>
+````````````````````````````````
+
+Affiliated keywords (e.g. `#+CAPTION:`, `#+NAME:`, `#+ATTR_HTML:`) belong to
+the element directly following them. The caption is reported as the first
+child of the element; the renderer uses the captions of tables, source
+blocks and figures. The renderer also uses `#+NAME:` and `#+ATTR_HTML:` (see
+below).
+
+```````````````````````````````` example
+#+CAPTION: The /picture/
+[[file:image.png]]
+
+#+CAPTION: Ignored for a normal paragraph
+Text
+.
+<div class="figure">
+<p><img src="image.png" alt="image.png">
+</p>
+<p><span class="figure-number">Figure 1: </span>The <i>picture</i></p>
+</div>
+<p>Text</p>
+````````````````````````````````
+
+```````````````````````````````` example
+#+CAPTION: The table
+#+NAME: tbl
+| a |
+
+#+CAPTION: The code
+#+begin_src sh
+ls
+#+end_src
+.
+<table id="tbl">
+<caption class="t-above"><span class="table-number">Table 1:</span> The table</caption>
+<tbody>
+<tr>
+<td>a</td>
+</tr>
+</tbody>
+</table>
+<label class="org-src-name"><span class="listing-number">Listing 1: </span>The code</label><pre><code class="language-sh">ls
+</code></pre>
+````````````````````````````````
+
+If there is a blank line after the keyword, it is not affiliated.
+
+```````````````````````````````` example
+#+CAPTION: Orphan
+
+| a |
+.
+<table>
+<tbody>
+<tr>
+<td>a</td>
+</tr>
+</tbody>
+</table>
+````````````````````````````````
+
+The name (`#+NAME:`) of an element is used as its `id`, so that the links to
+it work. Unlike `ox-html`, which does so only for some elements, ORG4C does so
+also for paragraphs, lists, verse and center blocks and fixed-width areas.
+(Drawers, dynamic blocks, horizontal rules and LaTeX environments get no
+`id`.)
+
+```````````````````````````````` example
+#+NAME: tbl
+| a |
+
+#+NAME: code
+#+begin_src sh
+ls
+#+end_src
+
+#+NAME: par
+A paragraph.
+
+See [[tbl]], [[code]] and [[par]].
+.
+<table id="tbl">
+<tbody>
+<tr>
+<td>a</td>
+</tr>
+</tbody>
+</table>
+<pre id="code"><code class="language-sh">ls
+</code></pre>
+<p id="par">A paragraph.</p>
+<p>See <a href="#tbl">tbl</a>, <a href="#code">code</a> and <a href="#par">par</a>.</p>
+````````````````````````````````
+
+The attributes given by `#+ATTR_HTML:` are added to tables, paragraphs, lists,
+quotes, example blocks and special blocks (the elements `ox-html` adds them
+to). A class is appended to the class the element has anyway.
+
+```````````````````````````````` example
+#+ATTR_HTML: :class wide :border 1
+| a |
+
+#+ATTR_HTML: :class tip
+#+begin_quote
+q
+#+end_quote
+
+#+ATTR_HTML: :class steps
+1. a
+
+#+ATTR_HTML: :class out
+#+begin_example
+e
+#+end_example
+
+#+ATTR_HTML: :class warning
+#+begin_note
+n
+#+end_note
+.
+<table class="wide" border="1">
+<tbody>
+<tr>
+<td>a</td>
+</tr>
+</tbody>
+</table>
+<blockquote class="tip">
+<p>q</p>
+</blockquote>
+<ol class="steps">
+<li>a</li>
+</ol>
+<pre class="example out">e
+</pre>
+<div class="note warning">
+<p>n</p>
+</div>
+````````````````````````````````
+
+As in `ox-html`, the attributes of a paragraph also go to its first link. This
+is how the attributes of an image are given (`:alt` replaces the default
+alternative text). The attributes of a figure go only to its image; its
+name goes to the figure.
+
+```````````````````````````````` example
+#+NAME: fig
+#+CAPTION: Cat
+#+ATTR_HTML: :width 300 :alt A cat
+[[file:cat.png]]
+
+#+ATTR_HTML: :class c
+See [[https://a.org][A]], [[file:b.png]] and [[https://c.org][C]].
+.
+<div class="figure" id="fig">
+<p><img src="cat.png" alt="A cat" width="300">
+</p>
+<p><span class="figure-number">Figure 1: </span>Cat</p>
+</div>
+<p class="c">See <a href="https://a.org" class="c">A</a>, <img src="b.png" alt="b.png"> and <a href="https://c.org">C</a>.</p>
+````````````````````````````````
+
+Any text before the first key is ignored, and so are the attributes without
+any value or with the value `nil`. The values are output as they are (only
+escaped). `:id` takes precedence over `#+NAME:`, and a later attribute
+replaces an earlier one with the same key, even from another `#+ATTR_HTML:`.
+
+```````````````````````````````` example
+#+NAME: name
+#+ATTR_HTML: ignored :id own :title "x & y" :hidden :lang nil
+#+ATTR_HTML: :class a :class b
+Text.
+.
+<p class="b" id="own" title="&quot;x &amp; y&quot;">Text.</p>
+````````````````````````````````
+
+Like the other affiliated keywords, they belong only to the element directly
+following them, even if it is not exported.
+
+```````````````````````````````` example
+#+ATTR_HTML: :class c
+
+Not affiliated.
+
+#+ATTR_HTML: :class c
+#+begin_comment
+x
+#+end_comment
+Nor this.
+.
+<p>Not affiliated.</p>
+<p>Nor this.</p>
+````````````````````````````````
+
+With `ORG_HTML_FLAG_IN_BUFFER_OPTIONS` (the default for `org2html`), the
+renderer honors some of the `#+OPTIONS:`.
+
+```````````````````````````````` example
+#+OPTIONS: ^:{} todo:nil pri:nil tags:nil -:nil e:nil \n:t
+* TODO [#A] Head :tag:
+a_b H_{2}O -- \alpha
+next
+.
+<h1>Head</h1>
+<p>a_b H<sub>2</sub>O -- \alpha<br>
+next</p>
+````````````````````````````````
+
+```````````````````````````````` example
+#+OPTIONS: f:nil d:nil
+Foo[fn:1]
+:DRAWER:
+hidden
+:END:
+
+[fn:1] Foot.
+.
+<p>Foo</p>
+````````````````````````````````
+
+```````````````````````````````` example
+#+OPTIONS: ^:nil
+a_b
+.
+<p>a_b</p>
+.
+--fsubsuperscripts
+````````````````````````````````
+
+```````````````````````````````` example
+#+OPTIONS: todo:nil
+* TODO Head
+.
+<h1><span class="todo TODO">TODO</span> Head</h1>
+.
+--fignore-options
+````````````````````````````````
+
+# Fixed-Width Areas
+
+Lines starting with `:` followed by a space (or the end of line).
+
+```````````````````````````````` example
+: foo
+:   bar
+:
+: baz
+.
+<pre class="example">foo
+  bar
+
+baz
+</pre>
+````````````````````````````````
+
+# Horizontal Rules
+
+A line consisting of at least five dashes.
+
+```````````````````````````````` example
+-----
+  ----------
+----
+.
+<hr>
+<hr>
+<p>-&mdash;</p>
+````````````````````````````````

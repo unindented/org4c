@@ -1,0 +1,32 @@
+# Coverage
+
+This file is just a collection of unit tests not covered elsewhere.
+
+A list at the end of the document.
+
+```````````````````````````````` example
+- foo
+.
+<ul>
+<li>foo</li>
+</ul>
+````````````````````````````````
+
+Tab indentation (counts as 8 columns).
+
+```````````````````````````````` example
+- foo
+→bar
+.
+<ul>
+<li>foo
+bar</li>
+</ul>
+````````````````````````````````
+
+Empty document.
+
+```````````````````````````````` example
+
+.
+````````````````````````````````

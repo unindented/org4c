@@ -1,0 +1,51 @@
+# Subscripts and Superscripts
+
+With the flag `ORG_FLAG_SUBSUPERSCRIPTS`, ORG4C recognizes subscripts and
+superscripts. (Emacs Org does so by default, but it is often surprising.)
+
+The script follows a non-whitespace character. It is either `*`, a text in
+braces, or a word (optionally starting with a sign, and ending with an
+alphanumeric character).
+
+```````````````````````````````` example
+a_b x^2 H_{2}O e^-1 x^{a_b} a_* a_1.5b, c_x.
+.
+<p>a<sub>b</sub> x<sup>2</sup> H<sub>2</sub>O e<sup>-1</sup> x<sup>a<sub>b</sub></sup> a<sub>*</sub> a<sub>1.5b</sub>, c<sub>x</sub>.</p>
+.
+--fsubsuperscripts
+````````````````````````````````
+
+```````````````````````````````` example
+snake_case_name and _underline_ and x__y
+.
+<p>snake<sub>case</sub><sub>name</sub> and <span class="underline">underline</span> and x_<sub>y</sub></p>
+.
+--fsubsuperscripts
+````````````````````````````````
+
+```````````````````````````````` example
+a _b and a^ b
+.
+<p>a _b and a^ b</p>
+.
+--fsubsuperscripts
+````````````````````````````````
+
+With the flag `ORG_FLAG_SUBSUPERSCRIPTS_BRACED` (Org's `#+OPTIONS: ^:{}`),
+only the scripts in braces are recognized.
+
+```````````````````````````````` example
+a_b H_{2}O x^{a_b} e^-1
+.
+<p>a_b H<sub>2</sub>O x<sup>a_b</sup> e^-1</p>
+.
+--fsubsuperscripts-braced
+````````````````````````````````
+
+Without the flags, they are not recognized.
+
+```````````````````````````````` example
+a_b H_{2}O
+.
+<p>a_b H_{2}O</p>
+````````````````````````````````

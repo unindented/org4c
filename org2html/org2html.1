@@ -1,0 +1,125 @@
+.TH ORG2HTML 1 "September 2026" "" "General Commands"
+.nh
+.ad l
+.
+.SH NAME
+.
+org2html \- convert Org to HTML
+.
+.SH SYNOPSIS
+.
+.B org2html
+.RI [ OPTION ]...\&
+.RI [ FILE ]
+.
+.SH DESCRIPTION
+.
+Convert the Org document in \fIFILE\fR (or in the standard input if
+\fIFILE\fR is missing or \fB-\fR) to HTML.
+.PP
+Commented subtrees (headlines with the \fBCOMMENT\fR keyword) and the
+subtrees tagged \fB:noexport:\fR are skipped.
+The in-buffer \fB#+OPTIONS:\fR of the document are honored (unless
+\fB--fignore-options\fR is used) and they override the respective options.
+.
+.SH OPTIONS
+.
+.SS General options:
+.
+.TP
+.BR -o ", " --output= \fIOUTFILE\fR
+Write output to \fIOUTFILE\fR instead of \fBstdout\fR(3)
+.
+.TP
+.BR -f ", " --full-html
+Generate full HTML document, including header
+(its \fB<title>\fR is the \fB#+TITLE:\fR of the document, unless
+\fB--html-title\fR is used)
+.
+.TP
+.BR -x ", " --xhtml
+Generate XHTML instead of HTML
+.
+.TP
+.BR -s ", " --stat
+Measure time of input parsing
+.
+.TP
+.BR -h ", " --help
+Display help and exit
+.
+.TP
+.BR -v ", " --version
+Display version and exit
+.
+.SS Org extension options:
+.
+.TP
+.B --finlinetasks
+Enable inline tasks (headlines of level 15 or deeper)
+.
+.TP
+.B --fsubsuperscripts
+Enable sub/superscripts (e.g. \fBa_b\fR, \fBa^{b}\fR)
+.
+.TP
+.B --fsubsuperscripts-braced
+Enable only braced sub/superscripts (e.g. \fBa_{b}\fR), as Org's \fB^:{}\fR
+.
+.SS Org suppression options:
+.
+.TP
+.B --fno-export-blocks
+Do not output export blocks (\fB#+BEGIN_EXPORT\fR)
+.
+.TP
+.B --fno-latex
+Do not recognize LaTeX fragments and environments
+.
+.TP
+.B --fno-plain-links
+Do not recognize plain links (e.g. https://example.com)
+.
+.SS HTML generator options:
+.
+.TP
+.B --fhard-soft-breaks
+Render all soft line breaks as hard ones
+.
+.TP
+.B --fignore-options
+Ignore the in-buffer \fB#+OPTIONS:\fR of the document
+.
+.TP
+.B --ftoplevel-h2
+Render headlines of level N as \fB<h\fR\fIN+1\fR\fB>\fR (at most
+\fB<h6>\fR), as ox-html does.
+In full HTML or XHTML mode, also output the \fB#+TITLE:\fR of the document
+as \fB<h1 class="title">\fR
+.
+.TP
+.B --fverbatim-entities
+Do not translate entities (e.g. \fB\ealpha\fR)
+.
+.TP
+.B --fverbatim-special-strings
+Do not translate \fB--\fR, \fB---\fR, \fB...\fR and \fB\e-\fR into dashes,
+ellipsis and soft hyphen
+.
+.TP
+.BI --html-title= TITLE
+Sets the title of the document
+.
+.TP
+.BI --html-css= URL
+In full HTML or XHTML mode add a css link
+.
+.SH SEE ALSO
+.
+.UR https://github.com/unindented/org4c
+ORG4C
+.UE
+.PP
+.UR https://orgmode.org/worg/org-syntax.html
+Org Syntax
+.UE

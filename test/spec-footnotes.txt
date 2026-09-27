@@ -1,0 +1,183 @@
+# Footnotes
+
+A footnote reference is written as `[fn:label]`. The footnote is defined
+elsewhere by a line starting with `[fn:label]` at the column 0.
+
+The footnotes are numbered in the order of their first reference, and all
+the referenced ones are rendered at the end of the document.
+
+```````````````````````````````` example
+Foo[fn:1] and bar[fn:note].
+
+[fn:note] The note.
+
+[fn:1] The first.
+.
+<p>Foo<sup><a id="fnr.1" class="footref" href="#fn.1">1</a></sup> and bar<sup><a id="fnr.note" class="footref" href="#fn.note">2</a></sup>.</p>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes:</h2>
+<div id="text-footnotes">
+<div class="footdef"><sup><a id="fn.1" class="footnum" href="#fnr.1">1</a></sup> <div class="footpara"><p>The first.</p>
+</div></div>
+<div class="footdef"><sup><a id="fn.note" class="footnum" href="#fnr.note">2</a></sup> <div class="footpara"><p>The note.</p>
+</div></div>
+</div>
+</div>
+````````````````````````````````
+
+A definition may contain other elements. It ends before the next definition,
+the next headline, or two consecutive blank lines.
+
+```````````````````````````````` example
+Foo[fn:1].
+
+[fn:1] Para one.
+
+- item
+
+
+Not a part of the definition.
+.
+<p>Foo<sup><a id="fnr.1" class="footref" href="#fn.1">1</a></sup>.</p>
+<p>Not a part of the definition.</p>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes:</h2>
+<div id="text-footnotes">
+<div class="footdef"><sup><a id="fn.1" class="footnum" href="#fnr.1">1</a></sup> <div class="footpara"><p>Para one.</p>
+<ul>
+<li>item</li>
+</ul>
+</div></div>
+</div>
+</div>
+````````````````````````````````
+
+```````````````````````````````` example
+Foo[fn:1].
+
+[fn:1] Definition.
+* Headline
+Text.
+.
+<p>Foo<sup><a id="fnr.1" class="footref" href="#fn.1">1</a></sup>.</p>
+<h1>Headline</h1>
+<p>Text.</p>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes:</h2>
+<div id="text-footnotes">
+<div class="footdef"><sup><a id="fn.1" class="footnum" href="#fnr.1">1</a></sup> <div class="footpara"><p>Definition.</p>
+</div></div>
+</div>
+</div>
+````````````````````````````````
+
+Multiple references to the same footnote.
+
+```````````````````````````````` example
+A[fn:x] B[fn:x] C[fn:x]
+
+[fn:x] X.
+.
+<p>A<sup><a id="fnr.x" class="footref" href="#fn.x">1</a></sup> B<sup><a id="fnr.x.1" class="footref" href="#fn.x">1</a></sup> C<sup><a id="fnr.x.2" class="footref" href="#fn.x">1</a></sup></p>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes:</h2>
+<div id="text-footnotes">
+<div class="footdef"><sup><a id="fn.x" class="footnum" href="#fnr.x">1</a></sup> <div class="footpara"><p>X.</p>
+</div></div>
+</div>
+</div>
+````````````````````````````````
+
+Inline definitions, named or anonymous.
+
+```````````````````````````````` example
+A[fn:inl:Inline *definition*.] B[fn::Anonymous one.] C[fn:inl]
+.
+<p>A<sup><a id="fnr.inl" class="footref" href="#fn.inl">1</a></sup> B<sup><a id="fnr.2" class="footref" href="#fn.2">2</a></sup> C<sup><a id="fnr.inl.1" class="footref" href="#fn.inl">1</a></sup></p>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes:</h2>
+<div id="text-footnotes">
+<div class="footdef"><sup><a id="fn.inl" class="footnum" href="#fnr.inl">1</a></sup> <div class="footpara"><p>Inline <b>definition</b>.</p>
+</div></div>
+<div class="footdef"><sup><a id="fn.2" class="footnum" href="#fnr.2">2</a></sup> <div class="footpara"><p>Anonymous one.</p>
+</div></div>
+</div>
+</div>
+````````````````````````````````
+
+The definition may contain balanced brackets.
+
+```````````````````````````````` example
+A[fn::See [[https://example.com][this]] [sic].]
+.
+<p>A<sup><a id="fnr.1" class="footref" href="#fn.1">1</a></sup></p>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes:</h2>
+<div id="text-footnotes">
+<div class="footdef"><sup><a id="fn.1" class="footnum" href="#fnr.1">1</a></sup> <div class="footpara"><p>See <a href="https://example.com">this</a> [sic].</p>
+</div></div>
+</div>
+</div>
+````````````````````````````````
+
+Unreferenced definitions are not rendered. References to undefined
+footnotes are rendered (with an empty definition).
+
+```````````````````````````````` example
+[fn:unused] Unused.
+
+
+Foo[fn:undefined].
+.
+<p>Foo<sup><a id="fnr.undefined" class="footref" href="#fn.undefined">1</a></sup>.</p>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes:</h2>
+<div id="text-footnotes">
+<div class="footdef"><sup><a id="fn.undefined" class="footnum" href="#fnr.undefined">1</a></sup> <div class="footpara"></div></div>
+</div>
+</div>
+````````````````````````````````
+
+(Note a single blank line does not end the definition; so here the paragraph
+is a part of the unreferenced definition.)
+
+```````````````````````````````` example
+[fn:unused] Unused.
+
+Foo[fn:undefined].
+.
+````````````````````````````````
+
+Footnotes referenced in footnote definitions.
+
+```````````````````````````````` example
+A[fn:1]
+
+[fn:1] See also[fn:2].
+[fn:2] Nested.
+.
+<p>A<sup><a id="fnr.1" class="footref" href="#fn.1">1</a></sup></p>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes:</h2>
+<div id="text-footnotes">
+<div class="footdef"><sup><a id="fn.1" class="footnum" href="#fnr.1">1</a></sup> <div class="footpara"><p>See also<sup><a id="fnr.2" class="footref" href="#fn.2">2</a></sup>.</p>
+</div></div>
+<div class="footdef"><sup><a id="fn.2" class="footnum" href="#fnr.2">2</a></sup> <div class="footpara"><p>Nested.</p>
+</div></div>
+</div>
+</div>
+````````````````````````````````
+
+The definition has to start at the column 0.
+
+```````````````````````````````` example
+ [fn:1] Not a definition.
+.
+<p><sup><a id="fnr.1" class="footref" href="#fn.1">1</a></sup> Not a definition.</p>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes:</h2>
+<div id="text-footnotes">
+<div class="footdef"><sup><a id="fn.1" class="footnum" href="#fnr.1">1</a></sup> <div class="footpara"></div></div>
+</div>
+</div>
+````````````````````````````````
