@@ -412,6 +412,11 @@ struct ORG_CTX_tag {
     /* Current nesting level of the spans being processed. */
     int span_nesting_level;
 
+    /* Index of the line where org_process_text() ended the last time. It is
+     * only a hint (the lines may be different by now), so it is validated
+     * before use. */
+    SZ text_line_hint;
+
     /* For macro expansions. */
     int macro_nesting_level;
     SZ macro_output_budget;
@@ -3359,9 +3364,26 @@ org_process_text(ORG_CTX* ctx, ORG_TEXTTYPE text_type, const ORG_LINE* lines, SZ
     if(beg >= end)
         return 0;
 
-    line = org_lookup_line(beg, lines, n_lines, &line_index);
-    if(line == NULL)
-        return 0;
+    /* Optimization: The texts are mostly emitted in their order, so the line
+     * is usually the first one, the one where the previous text ended, or
+     * the next one. (Same result as org_lookup_line(): The first line not
+     * ending before beg.) */
+    if(n_lines > 0  &&  lines[0].end >= beg) {
+        line_index = 0;
+    } else {
+        line_index = ctx->text_line_hint;
+        if(line_index < n_lines  &&  lines[line_index].end < beg)
+            line_index++;
+    }
+    if(line_index < n_lines  &&  lines[line_index].end >= beg  &&
+       (line_index == 0  ||  lines[line_index-1].end < beg))
+    {
+        line = &lines[line_index];
+    } else {
+        line = org_lookup_line(beg, lines, n_lines, &line_index);
+        if(line == NULL)
+            return 0;
+    }
     if(off < line->beg)
         off = line->beg;
 
@@ -3396,6 +3418,8 @@ org_process_text(ORG_CTX* ctx, ORG_TEXTTYPE text_type, const ORG_LINE* lines, SZ
         if(off >= end)
             break;
     }
+
+    ctx->text_line_hint = line_index;
 
 abort:
     return ret;

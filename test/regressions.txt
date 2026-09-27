@@ -339,3 +339,36 @@ markup do not protect "|".
 </tbody>
 </table>
 ````````````````````````````````
+
+Text split over multiple lines inside nested spans, inline footnotes, macro
+expansions and link descriptions.
+
+```````````````````````````````` example
+#+MACRO: m [$1] *$2*
+a *b
+c /d
+e/ f* g [fn::h
+*i
+j* k] l {{{m(x
+y,z
+w)}}} n [[u][v
+=w=
+x]] y\\
+z
+.
+<p>a <b>b
+c <i>d
+e</i> f</b> g <sup><a id="fnr.1" class="footref" href="#fn.1">1</a></sup> l [x y] <b>z w</b> n <a href="#u">v
+<code>w</code>
+x</a> y<br>
+z</p>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes:</h2>
+<div id="text-footnotes">
+<div class="footdef"><sup><a id="fn.1" class="footnum" href="#fnr.1">1</a></sup> <div class="footpara"><p>h
+<b>i
+j</b> k</p>
+</div></div>
+</div>
+</div>
+````````````````````````````````
