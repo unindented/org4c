@@ -391,15 +391,15 @@ struct ORG_CTX_tag {
     OFF macro_horizon;              /* ")}}}" */
 
     /* Matching brackets ('[' and ']', '{' and '}', '(' and ')') within the
-     * current block. Built by org_build_bracket_matches() (called from
-     * org_collect_marks()). For each opening bracket at offset OFF,
-     * bracket_matches[OFF - bracket_region_beg] is the offset of its matching
-     * closing bracket (or zero). (bracket_stack[] is a temporary buffer of the
-     * same size.) */
+     * current block. Built lazily by org_build_bracket_matches() when first
+     * needed (org_collect_marks() only resets it). For each opening bracket
+     * at offset OFF, bracket_matches[OFF - bracket_region_beg] is the offset
+     * of its matching closing bracket (or zero). */
     OFF* bracket_matches;
-    OFF* bracket_stack;
     int alloc_bracket_matches;
     OFF bracket_region_beg;
+    OFF bracket_region_end;
+    bool bracket_matches_valid;
 
     /* Current nesting level of the spans being processed. */
     int span_nesting_level;
@@ -2011,21 +2011,16 @@ org_is_plain_link(ORG_CTX* ctx, OFF beg, OFF max_end, OFF* p_end)
  ***  Recognizing Other Objects  ***
  ***********************************/
 
-/* Build the table of matching brackets ("[]", "{}", "()") for the region
- * [beg, end). Org counts only brackets of the same kind (e.g. "{a[}" is a
- * balanced brace pair). */
+/* Prepare (but do not build yet) the table of matching brackets for the
+ * region [beg, end). As the table is not needed in most blocks, it is built
+ * only on the first use; see org_bracket_match(). */
 static int
-org_build_bracket_matches(ORG_CTX* ctx, OFF beg, OFF end)
+org_reset_bracket_matches(ORG_CTX* ctx, OFF beg, OFF end)
 {
-    static const CHAR openers[3] = { _T('['), _T('{'), _T('(') };
-    static const CHAR closers[3] = { _T(']'), _T('}'), _T(')') };
     int size = (int) (end - beg);
-    int kind;
-    OFF off;
 
     if(size + 1 > ctx->alloc_bracket_matches) {
         OFF* new_matches;
-        OFF* new_stack;
         int new_alloc;
 
         new_alloc = (ctx->alloc_bracket_matches > 0
@@ -2040,41 +2035,77 @@ org_build_bracket_matches(ORG_CTX* ctx, OFF beg, OFF end)
             return -1;
         }
         ctx->bracket_matches = new_matches;
-
-        new_stack = (OFF*) realloc(ctx->bracket_stack, new_alloc * sizeof(OFF));
-        if(new_stack == NULL) {
-            ORG_LOG("realloc() failed.");
-            return -1;
-        }
-        ctx->bracket_stack = new_stack;
-
-        /* (Only when both the buffers have been reallocated.) */
         ctx->alloc_bracket_matches = new_alloc;
     }
 
-    memset(ctx->bracket_matches, 0, (size + 1) * sizeof(OFF));
-    for(kind = 0; kind < 3; kind++) {
-        int n_stack = 0;
+    ctx->bracket_region_beg = beg;
+    ctx->bracket_region_end = end;
+    ctx->bracket_matches_valid = false;
+    return 0;
+}
 
-        for(off = beg; off < end; off++) {
-            if(CH(off) == openers[kind]) {
-                ctx->bracket_stack[n_stack++] = off;
-            } else if(CH(off) == closers[kind]  &&  n_stack > 0) {
-                OFF opener = ctx->bracket_stack[--n_stack];
+/* Build the table of matching brackets ("[]", "{}", "()") for the region set
+ * by org_reset_bracket_matches(). Org counts only brackets of the same kind
+ * (e.g. "{a[}" is a balanced brace pair).
+ *
+ * All the three kinds are matched in a single pass. The stack of unmatched
+ * openers of each kind is kept as a linked list in the table itself: The
+ * entry of an unmatched opener holds the offset of the previous one (or 'end'
+ * as a terminator). Note only the entries of the openers are ever set. */
+static void
+org_build_bracket_matches(ORG_CTX* ctx)
+{
+    OFF beg = ctx->bracket_region_beg;
+    OFF end = ctx->bracket_region_end;
+    OFF top[3] = { end, end, end };
+    int kind;
+    OFF off;
+
+    for(off = beg; off < end; off++) {
+        switch(CH(off)) {
+            case _T('['):   kind = 0; break;
+            case _T('{'):   kind = 1; break;
+            case _T('('):   kind = 2; break;
+            case _T(']'):   kind = -1; break;
+            case _T('}'):   kind = -2; break;
+            case _T(')'):   kind = -3; break;
+            default:        continue;
+        }
+
+        if(kind >= 0) {
+            /* Push the opener. */
+            ctx->bracket_matches[off - beg] = top[kind];
+            top[kind] = off;
+        } else {
+            /* Pop the opener (if any) and match it with the closer. */
+            kind = -kind - 1;
+            if(top[kind] != end) {
+                OFF opener = top[kind];
+                top[kind] = ctx->bracket_matches[opener - beg];
                 ctx->bracket_matches[opener - beg] = off;
             }
         }
     }
 
-    ctx->bracket_region_beg = beg;
-    return 0;
+    /* The remaining openers are unmatched. */
+    for(kind = 0; kind < 3; kind++) {
+        while(top[kind] != end) {
+            OFF opener = top[kind];
+            top[kind] = ctx->bracket_matches[opener - beg];
+            ctx->bracket_matches[opener - beg] = 0;
+        }
+    }
+
+    ctx->bracket_matches_valid = true;
 }
 
-/* Returns offset of the bracket matching the one at 'off' (see
+/* Returns offset of the bracket matching the opening one at 'off' (see
  * org_build_bracket_matches()); or zero if there is none. */
 static OFF
 org_bracket_match(ORG_CTX* ctx, OFF off)
 {
+    if(!ctx->bracket_matches_valid)
+        org_build_bracket_matches(ctx);
     return ctx->bracket_matches[off - ctx->bracket_region_beg];
 }
 
@@ -2966,7 +2997,7 @@ org_collect_marks(ORG_CTX* ctx, const ORG_LINE* lines, SZ n_lines)
     int ret = 0;
 
     /* The objects with brackets (links, citations, ...) need them. */
-    ORG_CHECK(org_build_bracket_matches(ctx, region_beg, region_end));
+    ORG_CHECK(org_reset_bracket_matches(ctx, region_beg, region_end));
 
     for(line_index = 0; line_index < n_lines; line_index++) {
         const ORG_LINE* line = &lines[line_index];
@@ -3674,7 +3705,7 @@ org_process_detached_text(ORG_CTX* ctx, const CHAR* text, SZ size)
     ctx->alloc_marks = 0;
     ctx->bracket_matches = NULL;
     ctx->alloc_bracket_matches = 0;
-    ctx->bracket_stack = NULL;
+    ctx->bracket_matches_valid = false;
     ctx->is_detached = true;
 
     line.beg = 0;
@@ -3683,7 +3714,6 @@ org_process_detached_text(ORG_CTX* ctx, const CHAR* text, SZ size)
 
     free(ctx->marks);
     free(ctx->bracket_matches);
-    free(ctx->bracket_stack);
 
     /* Restore everything except the state which has to survive. */
     saved.span_nesting_level = ctx->span_nesting_level;
@@ -6143,7 +6173,6 @@ org_parse(const ORG_CHAR* text, ORG_SIZE size, const ORG_PARSER* parser, void* u
     free(ctx.footnote_buckets);
     free(ctx.footnote_order);
     free(ctx.bracket_matches);
-    free(ctx.bracket_stack);
     free(ctx.marks);
     free(ctx.block_bytes);
     free(ctx.containers);
