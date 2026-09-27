@@ -308,6 +308,8 @@ struct ORG_CTX_tag {
      * made only of the document characters and a few ASCII ones (spaces,
      * commas, backslashes, digits). */
     bool doc_has_cr;                /* The document contains some '\r'. */
+    bool doc_has_nul;               /* The document contains some '\0'. */
+    bool doc_has_radio_opener;      /* The document contains some "<<<". */
 
     /* Document-wide indexes (built by org_build_doc_index(); except the code
      * blocks and references, built by org_resolve_code_blocks()). They are
@@ -625,6 +627,10 @@ org_text_with_null_replacement(ORG_CTX* ctx, ORG_TEXTTYPE type, const CHAR* str,
 {
     OFF off = 0;
     int ret = 0;
+
+    /* Optimization: Most documents contain no NUL at all. */
+    if(!ctx->doc_has_nul)
+        return ctx->parser.text(type, str, size, ctx->userdata);
 
     while(1) {
 #if defined ORG4C_USE_UTF16
@@ -1016,10 +1022,29 @@ static void
 org_check_doc_chars(ORG_CTX* ctx)
 {
 #if defined ORG4C_USE_UTF16
-    /* Unused (memchr() works only for 8-bit characters). */
+    /* Conservative (memchr() works only for 8-bit characters). */
     ctx->doc_has_cr = true;
+    ctx->doc_has_nul = true;
+    ctx->doc_has_radio_opener = true;
 #else
+    const CHAR* ptr = ctx->text;
+    const CHAR* end = ctx->text + ctx->size;
+
     ctx->doc_has_cr = (ctx->size > 0  &&  memchr(ctx->text, '\r', ctx->size) != NULL);
+    ctx->doc_has_nul = (ctx->size > 0  &&  memchr(ctx->text, '\0', ctx->size) != NULL);
+
+    /* Look for "<<<" (the opener of a radio target). */
+    ctx->doc_has_radio_opener = false;
+    while(end - ptr >= 3) {
+        ptr = (const CHAR*) memchr(ptr, '<', (size_t) (end - ptr - 2));
+        if(ptr == NULL)
+            break;
+        if(ptr[1] == _T('<')  &&  ptr[2] == _T('<')) {
+            ctx->doc_has_radio_opener = true;
+            break;
+        }
+        ptr++;
+    }
 #endif
 }
 
@@ -1395,7 +1420,9 @@ org_build_doc_index(ORG_CTX* ctx)
             }
         }
 
-        ORG_CHECK(org_collect_radio_targets(ctx, beg, end));
+        /* Optimization: Most documents contain no radio target at all. */
+        if(ctx->doc_has_radio_opener)
+            ORG_CHECK(org_collect_radio_targets(ctx, beg, end));
 
         line_beg = org_skip_newline(ctx, line_end);
     }
