@@ -372,3 +372,13 @@ j</b> k</p>
 </div>
 </div>
 ````````````````````````````````
+
+Macros with empty arguments, and macros expanding to nothing.
+
+```````````````````````````````` example
+#+MACRO: m <$1>
+#+MACRO: e
+a {{{m()}}} b {{{m(  )}}} c {{{m( , )}}} d {{{keyword()}}} e {{{e}}} f {{{e()}}} g
+.
+<p>a &lt;&gt; b &lt;&gt; c &lt;&gt; d  e  f  g</p>
+````````````````````````````````

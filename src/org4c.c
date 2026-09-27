@@ -3576,6 +3576,10 @@ struct ORG_STRBUF_tag {
 static int
 org_strbuf_append(ORG_CTX* ctx, ORG_STRBUF* buf, const CHAR* str, SZ size)
 {
+    /* (The buffer may still be NULL, and so may be 'str' when empty.) */
+    if(size == 0)
+        return 0;
+
     if(buf->size + size > buf->alloc) {
         SZ new_alloc = buf->alloc + buf->alloc / 2 + size + 64;
         CHAR* new_data = (CHAR*) realloc(buf->data, new_alloc * sizeof(CHAR));
@@ -3797,6 +3801,7 @@ org_expand_macro(ORG_CTX* ctx, const ORG_MARK* mark, ORG_STRBUF* buf)
     const CHAR* name = STR(mark->sub_beg);
     SZ name_size = mark->sub_end - mark->sub_beg;
     ORG_STRBUF args = { NULL, 0, 0 };
+    const CHAR* args_text;
     SZ arg_offs[MACRO_MAX_ARGS];
     SZ arg_sizes[MACRO_MAX_ARGS];
     int n_args;
@@ -3804,6 +3809,8 @@ org_expand_macro(ORG_CTX* ctx, const ORG_MARK* mark, ORG_STRBUF* buf)
     int ret = 0;
 
     ORG_CHECK(org_macro_arguments(ctx, mark->desc_beg, mark->desc_end, &args, arg_offs, arg_sizes, &n_args));
+    /* If all the arguments are empty, the buffer is still NULL. */
+    args_text = (args.data != NULL ? args.data : _T(""));
 
     macro = org_lookup_macro(ctx, name, name_size);
     if(macro != NULL) {
@@ -3825,7 +3832,7 @@ org_expand_macro(ORG_CTX* ctx, const ORG_MARK* mark, ORG_STRBUF* buf)
                 while(i < tmpl_size  &&  ISDIGIT_(tmpl[i])  &&  n < 1000)
                     n = n * 10 + (tmpl[i++] - _T('0'));
                 if(n >= 1  &&  n <= n_args)
-                    ORG_CHECK(org_strbuf_append(ctx, buf, args.data + arg_offs[n-1], arg_sizes[n-1]));
+                    ORG_CHECK(org_strbuf_append(ctx, buf, args_text + arg_offs[n-1], arg_sizes[n-1]));
             } else {
                 ORG_CHECK(org_strbuf_append(ctx, buf, tmpl + i, 1));
                 i++;
@@ -3841,7 +3848,7 @@ org_expand_macro(ORG_CTX* ctx, const ORG_MARK* mark, ORG_STRBUF* buf)
         ORG_CHECK(org_append_keyword_values(ctx, buf, _T("DATE"), 4));
     } else if(name_size == 7  &&  org_ascii_case_eq(name, _T("keyword"), 7)) {
         if(n_args > 0)
-            ORG_CHECK(org_append_keyword_values(ctx, buf, args.data + arg_offs[0], arg_sizes[0]));
+            ORG_CHECK(org_append_keyword_values(ctx, buf, args_text + arg_offs[0], arg_sizes[0]));
     } else if(name_size == 1  &&  (name[0] == _T('n')  ||  name[0] == _T('N'))) {
         /* The arguments of the counter are not escaped. */
         SZ raw_offs[MACRO_MAX_ARGS];
@@ -3883,9 +3890,15 @@ abort:
 static int
 org_process_detached_text(ORG_CTX* ctx, const CHAR* text, SZ size)
 {
-    ORG_CTX saved = *ctx;
+    ORG_CTX saved;
     ORG_LINE line;
     int ret;
+
+    /* (Nothing to do; and 'text' may be NULL then.) */
+    if(size == 0)
+        return 0;
+
+    saved = *ctx;
 
     ctx->text = text;
     ctx->size = size;
