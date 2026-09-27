@@ -33,7 +33,7 @@ jobs:
           lcov --directory . --capture --branch-coverage --output-file coverage.info
           lcov --list coverage.info --branch-coverage
       - name: Upload coverage report
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
