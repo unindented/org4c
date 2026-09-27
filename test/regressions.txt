@@ -151,3 +151,15 @@ https://x.org src_c{x} call_f(y)
 .
 --fno-plain-links
 ````````````````````````````````
+
+Emphasis markers next to non-ASCII whitespace (U+00A0, U+3000) and next to
+non-ASCII non-whitespace.
+
+```````````````````````````````` example
+*a* x  *b*  x　/c/　y é*d*é * e* *f *
+
+　=g=
+.
+<p><b>a</b> x  <b>b</b>  x　<i>c</i>　y é*d*é * e* *f *</p>
+<p>　<code>g</code></p>
+````````````````````````````````

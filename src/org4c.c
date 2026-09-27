@@ -936,9 +936,15 @@ org_bsearch_offset_after(const OFF* arr, int n, OFF off)
         return (unsigned) CH(off-1);
     }
 
+    /* Optimization: Most characters tested are ASCII, so avoid the decoding
+     * and the table lookup for them. */
     #define ISUNICODEWHITESPACE_(codepoint) org_is_unicode_whitespace__(codepoint)
-    #define ISUNICODEWHITESPACE(off)        org_is_unicode_whitespace__(org_decode_utf8__(STR(off), ctx->size - (off), NULL))
-    #define ISUNICODEWHITESPACEBEFORE(off)  org_is_unicode_whitespace__(org_decode_utf8_before__(ctx, off))
+    #define ISUNICODEWHITESPACE(off)        (IS_UTF8_LEAD1(CH(off))                                        \
+                                                ? (ISWHITESPACE(off) || ISNEWLINE(off))                     \
+                                                : org_is_unicode_whitespace__(org_decode_utf8__(STR(off), ctx->size - (off), NULL)))
+    #define ISUNICODEWHITESPACEBEFORE(off)  (IS_UTF8_LEAD1(CH((off)-1))                                    \
+                                                ? (ISWHITESPACE((off)-1) || ISNEWLINE((off)-1))             \
+                                                : org_is_unicode_whitespace__(org_decode_utf8_before__(ctx, off)))
 #else
     #define ISUNICODEWHITESPACE_(codepoint) (ISWHITESPACE_(codepoint) || ISNEWLINE_(codepoint))
     #define ISUNICODEWHITESPACE(off)        (ISWHITESPACE(off) || ISNEWLINE(off))
