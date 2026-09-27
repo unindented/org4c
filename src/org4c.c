@@ -4268,6 +4268,29 @@ org_next_table_cell(ORG_CTX* ctx, OFF* p_off, OFF end, OFF* p_cell_beg, OFF* p_c
     return true;
 }
 
+/* Count the cells of a table row; i.e. how many times org_next_table_cell()
+ * succeeds for it. */
+static int
+org_count_table_cells(ORG_CTX* ctx, const ORG_LINE* row)
+{
+    OFF off;
+    int n = 0;
+
+    if(row->beg + 1 >= row->end)
+        return 0;
+
+    /* Optimization: Only count the '|' delimiters; the cell contents and their
+     * surrounding blanks do not matter here. Each '|' ends one cell, and the
+     * text after the last one (if any) forms one more. */
+    for(off = row->beg + 1; off < row->end; off++) {
+        if(CH(off) == _T('|'))
+            n++;
+    }
+    if(CH(row->end - 1) != _T('|'))
+        n++;
+    return n;
+}
+
 static int
 org_is_table_rule_row(ORG_CTX* ctx, const ORG_LINE* row)
 {
@@ -4366,19 +4389,13 @@ org_process_table_block_contents(ORG_CTX* ctx, const ORG_LINE* lines, SZ n_lines
 
     /* Count the columns and find the first rule. */
     for(i = 0; i < n_lines; i++) {
-        OFF off = lines[i].beg + 1;
-        OFF cell_beg, cell_end;
-        int n = 0;
-
         if(org_is_table_rule_row(ctx, &lines[i])) {
             if(first_rule == n_lines)
                 first_rule = i;
             continue;
         }
 
-        while(org_next_table_cell(ctx, &off, lines[i].end, &cell_beg, &cell_end))
-            n++;
-        col_count = MAX(col_count, n);
+        col_count = MAX(col_count, org_count_table_cells(ctx, &lines[i]));
     }
 
     align = (ORG_ALIGN*) calloc(MAX(col_count, 1), sizeof(ORG_ALIGN));

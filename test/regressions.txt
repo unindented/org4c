@@ -220,3 +220,122 @@ description item.
 <li>e ::</li>
 </ul>
 ````````````````````````````````
+
+The number of columns of a table is given by its widest row, including empty
+cells, cells after the last "|" and blanks at the end of a row. Backslashes and
+markup do not protect "|".
+
+```````````````````````````````` example
+| a | b |
+|c|d|e
+|
+| 
+||
+|x\|y| z |
+| =a|b= | ~c|~ |
+| [[x|y]] | w |
+|-
+| <r> | <l> |  |
+| 1 | 2 |||
+.
+<table>
+<thead>
+<tr>
+<th align="right">a</th>
+<th align="left">b</th>
+<th></th>
+<th></th>
+</tr>
+<tr>
+<th align="right">c</th>
+<th align="left">d</th>
+<th>e</th>
+<th></th>
+</tr>
+<tr>
+<th align="right"></th>
+<th align="left"></th>
+<th></th>
+<th></th>
+</tr>
+<tr>
+<th align="right"></th>
+<th align="left"></th>
+<th></th>
+<th></th>
+</tr>
+<tr>
+<th align="right"></th>
+<th align="left"></th>
+<th></th>
+<th></th>
+</tr>
+<tr>
+<th align="right">x\</th>
+<th align="left">y</th>
+<th>z</th>
+<th></th>
+</tr>
+<tr>
+<th align="right">=a</th>
+<th align="left">b=</th>
+<th>~c</th>
+<th>~</th>
+</tr>
+<tr>
+<th align="right">[[x</th>
+<th align="left">y]]</th>
+<th>w</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="right">1</td>
+<td align="left">2</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+````````````````````````````````
+
+```````````````````````````````` example
+| a |
+| b | c | 
+| d ||
+|e|f|g|h|i
+.
+<table>
+<tbody>
+<tr>
+<td>a</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>b</td>
+<td>c</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>d</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>e</td>
+<td>f</td>
+<td>g</td>
+<td>h</td>
+<td>i</td>
+</tr>
+</tbody>
+</table>
+````````````````````````````````
