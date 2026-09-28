@@ -362,8 +362,9 @@ typedef enum ORG_ALIGN {
  * Note that these invariants are always guaranteed:
  *  -- substr_offsets[0] == 0
  *  -- substr_offsets[LAST+1] == size
- *  -- Currently, only ORG_TEXT_NORMAL substrings can appear. This could
- *     change in the future (e.g. to support entities).
+ *  -- Currently, only ORG_TEXT_NORMAL and ORG_TEXT_NULLCHAR substrings can
+ *     appear. (Each NUL character forms an ORG_TEXT_NULLCHAR substring of
+ *     its own.) This could change in the future (e.g. to support entities).
  *
  * If the attribute is not present (e.g. a source block without a language),
  * then text is NULL and size is zero.

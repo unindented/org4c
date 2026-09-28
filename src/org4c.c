@@ -294,6 +294,14 @@ struct ORG_MARK_tag {
 #define ORG_MARK_CITATION_OBJECT            _T('C')
 #define ORG_MARK_INLINE_BABEL_CALL_OBJECT   _T('B')
 
+/* Storage of the substrings of a non-trivial attribute (see
+ * org_build_attribute(ctx, )). */
+typedef struct ORG_ATTRIBUTE_STORAGE_tag ORG_ATTRIBUTE_STORAGE;
+struct ORG_ATTRIBUTE_STORAGE_tag {
+    ORG_ATTRIBUTE_STORAGE* next;
+    /* Followed by the arrays of the substring offsets and types. */
+};
+
 /* Context propagated through all the parsing. */
 typedef struct ORG_CTX_tag ORG_CTX;
 struct ORG_CTX_tag {
@@ -310,6 +318,11 @@ struct ORG_CTX_tag {
     bool doc_has_cr;                /* The document contains some '\r'. */
     bool doc_has_nul;               /* The document contains some '\0'. */
     bool doc_has_radio_opener;      /* The document contains some "<<<". */
+
+    /* Storages of the non-trivial attributes (i.e. those with some NUL). They
+     * are kept until the end of the parsing, as a detail (and its attributes)
+     * may be still in use by a callback of an outer element. */
+    ORG_ATTRIBUTE_STORAGE* attribute_storages;
 
     /* Document-wide indexes (built by org_build_doc_index(); except the code
      * blocks and references, built by org_resolve_code_blocks()). They are
@@ -1007,17 +1020,71 @@ struct ORG_ATTRIBUTE_BUILD_tag {
     OFF trivial_offsets[2];
 };
 
-/* Currently, all the attributes are trivial (i.e. there is only a single
- * ORG_TEXT_NORMAL substring). */
+/* Most attributes are trivial (i.e. there is only a single ORG_TEXT_NORMAL
+ * substring). But each NUL forms an ORG_TEXT_NULLCHAR substring of its own,
+ * as in the text callbacks (so the application may replace it). The attribute
+ * text always points into the input; only the substring arrays of the
+ * non-trivial attributes need an allocation. */
 static void
-org_build_attribute(const CHAR* text, SZ size, ORG_ATTRIBUTE* attr, ORG_ATTRIBUTE_BUILD* build)
+org_build_attribute(ORG_CTX* ctx, const CHAR* text, SZ size, ORG_ATTRIBUTE* attr, ORG_ATTRIBUTE_BUILD* build)
 {
+    attr->text = (size > 0 ? text : NULL);
+    attr->size = size;
+
+    if(ctx->doc_has_nul  &&  size > 0) {
+        SZ n_substrs = 0;
+        int in_normal = false;
+        SZ i;
+
+        for(i = 0; i < size; i++) {
+            if(text[i] == _T('\0')) {
+                n_substrs++;
+                in_normal = false;
+            } else if(!in_normal) {
+                n_substrs++;
+                in_normal = true;
+            }
+        }
+
+        if(n_substrs > 1  ||  text[0] == _T('\0')) {
+            ORG_ATTRIBUTE_STORAGE* storage;
+            OFF* offsets;
+            ORG_TEXTTYPE* types;
+            SZ k = 0;
+
+            storage = (ORG_ATTRIBUTE_STORAGE*) malloc(sizeof(ORG_ATTRIBUTE_STORAGE) +
+                        (n_substrs + 1) * sizeof(OFF) + n_substrs * sizeof(ORG_TEXTTYPE));
+            if(storage != NULL) {
+                storage->next = ctx->attribute_storages;
+                ctx->attribute_storages = storage;
+                offsets = (OFF*) (storage + 1);
+                types = (ORG_TEXTTYPE*) (offsets + n_substrs + 1);
+
+                for(i = 0; i < size; i++) {
+                    if(text[i] == _T('\0')) {
+                        types[k] = ORG_TEXT_NULLCHAR;
+                        offsets[k++] = i;
+                    } else if(i == 0  ||  text[i-1] == _T('\0')) {
+                        types[k] = ORG_TEXT_NORMAL;
+                        offsets[k++] = i;
+                    }
+                }
+                offsets[k] = size;
+
+                attr->substr_types = types;
+                attr->substr_offsets = offsets;
+                return;
+            }
+
+            /* Out of memory: Report the attribute as trivial, NULs included. */
+            ORG_LOG("malloc() failed.");
+        }
+    }
+
     build->trivial_types[0] = ORG_TEXT_NORMAL;
     build->trivial_offsets[0] = 0;
     build->trivial_offsets[1] = size;
 
-    attr->text = (size > 0 ? text : NULL);
-    attr->size = size;
     attr->substr_types = build->trivial_types;
     attr->substr_offsets = build->trivial_offsets;
 }
@@ -3479,9 +3546,9 @@ org_process_link(ORG_CTX* ctx, const ORG_LINE* lines, SZ n_lines, int mark_index
     if(type_size == 0)
         type_size = (SZ) org_strlen(type);
 
-    org_build_attribute(type, type_size, &det.type, &type_build);
-    org_build_attribute(STR(path_beg), target_end - path_beg, &det.path, &path_build);
-    org_build_attribute(STR(mark->sub_beg), mark->sub_end - mark->sub_beg, &det.raw, &raw_build);
+    org_build_attribute(ctx, type, type_size, &det.type, &type_build);
+    org_build_attribute(ctx, STR(path_beg), target_end - path_beg, &det.path, &path_build);
+    org_build_attribute(ctx, STR(mark->sub_beg), mark->sub_end - mark->sub_beg, &det.raw, &raw_build);
     det.is_plain = (mark->ch == ORG_MARK_PLAIN_LINK_OBJECT);
     det.has_description = (mark->desc_end > mark->desc_beg);
 
@@ -3554,7 +3621,7 @@ org_process_footnote_ref(ORG_CTX* ctx, int mark_index)
     memset(&det, 0, sizeof(det));
     det.id = fn->id;
     det.ref_id = fn->ref_count;
-    org_build_attribute(fn->label, fn->label_size, &det.label, &label_build);
+    org_build_attribute(ctx, fn->label, fn->label_size, &det.label, &label_build);
 
     ORG_ENTER_SPAN(ORG_SPAN_FOOTNOTE_REF, &det);
     ORG_LEAVE_SPAN(ORG_SPAN_FOOTNOTE_REF, &det);
@@ -3931,6 +3998,7 @@ org_process_detached_text(ORG_CTX* ctx, const CHAR* text, SZ size)
     saved.footnote_order = ctx->footnote_order;
     saved.n_footnote_order = ctx->n_footnote_order;
     saved.alloc_footnote_order = ctx->alloc_footnote_order;
+    saved.attribute_storages = ctx->attribute_storages;
     *ctx = saved;
 
     return ret;
@@ -3948,8 +4016,8 @@ org_process_macro(ORG_CTX* ctx, int mark_index)
     int ret = 0;
 
     memset(&det, 0, sizeof(det));
-    org_build_attribute(STR(mark->sub_beg), mark->sub_end - mark->sub_beg, &det.name, &attr_build[0]);
-    org_build_attribute(STR(mark->desc_beg), mark->desc_end - mark->desc_beg, &det.args, &attr_build[1]);
+    org_build_attribute(ctx, STR(mark->sub_beg), mark->sub_end - mark->sub_beg, &det.name, &attr_build[0]);
+    org_build_attribute(ctx, STR(mark->desc_beg), mark->desc_end - mark->desc_beg, &det.args, &attr_build[1]);
 
     ret = org_expand_macro(ctx, mark, &buf);
     if(ret < 0)
@@ -4026,18 +4094,18 @@ org_process_citation(ORG_CTX* ctx, int mark_index)
     }
 
     memset(&det, 0, sizeof(det));
-    org_build_attribute(STR(mark->sub_beg), mark->sub_end - mark->sub_beg, &det.style, &attr_build[0]);
+    org_build_attribute(ctx, STR(mark->sub_beg), mark->sub_end - mark->sub_beg, &det.style, &attr_build[0]);
     if(first_ref > 0) {
         OFF beg = org_skip_blanks(ctx, parts[0][0], parts[0][1]);
-        org_build_attribute(STR(beg), org_skip_blanks_backward(ctx, beg, parts[0][1]) - beg, &det.prefix, &attr_build[1]);
+        org_build_attribute(ctx, STR(beg), org_skip_blanks_backward(ctx, beg, parts[0][1]) - beg, &det.prefix, &attr_build[1]);
     } else {
-        org_build_attribute(NULL, 0, &det.prefix, &attr_build[1]);
+        org_build_attribute(ctx, NULL, 0, &det.prefix, &attr_build[1]);
     }
     if(last_ref >= 0  &&  last_ref < n_parts - 1) {
         OFF beg = org_skip_blanks(ctx, parts[n_parts-1][0], parts[n_parts-1][1]);
-        org_build_attribute(STR(beg), org_skip_blanks_backward(ctx, beg, parts[n_parts-1][1]) - beg, &det.suffix, &attr_build[2]);
+        org_build_attribute(ctx, STR(beg), org_skip_blanks_backward(ctx, beg, parts[n_parts-1][1]) - beg, &det.suffix, &attr_build[2]);
     } else {
-        org_build_attribute(NULL, 0, &det.suffix, &attr_build[2]);
+        org_build_attribute(ctx, NULL, 0, &det.suffix, &attr_build[2]);
     }
 
     ORG_ENTER_SPAN(ORG_SPAN_CITATION, &det);
@@ -4057,13 +4125,13 @@ org_process_citation(ORG_CTX* ctx, int mark_index)
             key_end++;
 
         memset(&ref_det, 0, sizeof(ref_det));
-        org_build_attribute(STR(at + 1), key_end - (at + 1), &ref_det.key, &ref_build[0]);
+        org_build_attribute(ctx, STR(at + 1), key_end - (at + 1), &ref_det.key, &ref_build[0]);
         beg = org_skip_blanks(ctx, parts[i][0], at);
         end = org_skip_blanks_backward(ctx, beg, at);
-        org_build_attribute(STR(beg), end - beg, &ref_det.prefix, &ref_build[1]);
+        org_build_attribute(ctx, STR(beg), end - beg, &ref_det.prefix, &ref_build[1]);
         beg = org_skip_blanks(ctx, key_end, parts[i][1]);
         end = org_skip_blanks_backward(ctx, beg, parts[i][1]);
-        org_build_attribute(STR(beg), end - beg, &ref_det.suffix, &ref_build[2]);
+        org_build_attribute(ctx, STR(beg), end - beg, &ref_det.suffix, &ref_build[2]);
 
         ORG_ENTER_SPAN(ORG_SPAN_CITATION_REFERENCE, &ref_det);
         ORG_LEAVE_SPAN(ORG_SPAN_CITATION_REFERENCE, &ref_det);
@@ -4108,7 +4176,7 @@ org_process_object(ORG_CTX* ctx, const ORG_LINE* lines, SZ n_lines, int mark_ind
             return org_process_citation(ctx, mark_index);
 
         case ORG_MARK_RADIO_TARGET_OBJECT:
-            org_build_attribute(STR(mark->sub_beg), mark->sub_end - mark->sub_beg, &det.target.name, &attr_build[0]);
+            org_build_attribute(ctx, STR(mark->sub_beg), mark->sub_end - mark->sub_beg, &det.target.name, &attr_build[0]);
             det.target.is_radio = true;
             ORG_ENTER_SPAN(ORG_SPAN_TARGET, &det.target);
             ORG_TEXT_INSECURE(ORG_TEXT_NORMAL, STR(mark->sub_beg), mark->sub_end - mark->sub_beg);
@@ -4119,9 +4187,9 @@ org_process_object(ORG_CTX* ctx, const ORG_LINE* lines, SZ n_lines, int mark_ind
         {
             const ORG_RADIO_TARGET* rt = &ctx->radio_targets[mark->index];
 
-            org_build_attribute(_T("radio"), 5, &det.link.type, &link_build[0]);
-            org_build_attribute(rt->text, rt->size, &det.link.path, &link_build[1]);
-            org_build_attribute(STR(mark->sub_beg), mark->sub_end - mark->sub_beg, &det.link.raw, &link_build[2]);
+            org_build_attribute(ctx, _T("radio"), 5, &det.link.type, &link_build[0]);
+            org_build_attribute(ctx, rt->text, rt->size, &det.link.path, &link_build[1]);
+            org_build_attribute(ctx, STR(mark->sub_beg), mark->sub_end - mark->sub_beg, &det.link.raw, &link_build[2]);
             det.link.has_description = true;
             ORG_ENTER_SPAN(ORG_SPAN_LINK, &det.link);
             ORG_TEXT_INSECURE(ORG_TEXT_NORMAL, STR(mark->sub_beg), mark->sub_end - mark->sub_beg);
@@ -4130,8 +4198,8 @@ org_process_object(ORG_CTX* ctx, const ORG_LINE* lines, SZ n_lines, int mark_ind
         }
 
         case ORG_MARK_INLINE_BABEL_CALL_OBJECT:
-            org_build_attribute(STR(mark->sub_beg), mark->sub_end - mark->sub_beg, &det.call.name, &attr_build[0]);
-            org_build_attribute(STR(mark->desc_beg), mark->desc_end - mark->desc_beg, &det.call.args, &attr_build[1]);
+            org_build_attribute(ctx, STR(mark->sub_beg), mark->sub_end - mark->sub_beg, &det.call.name, &attr_build[0]);
+            org_build_attribute(ctx, STR(mark->desc_beg), mark->desc_end - mark->desc_beg, &det.call.args, &attr_build[1]);
             ORG_ENTER_SPAN(ORG_SPAN_INLINE_BABEL_CALL, &det.call);
             ORG_LEAVE_SPAN(ORG_SPAN_INLINE_BABEL_CALL, &det.call);
             break;
@@ -4162,21 +4230,21 @@ org_process_object(ORG_CTX* ctx, const ORG_LINE* lines, SZ n_lines, int mark_ind
             break;
 
         case ORG_MARK_TARGET_OBJECT:
-            org_build_attribute(STR(mark->sub_beg), mark->sub_end - mark->sub_beg, &det.target.name, &attr_build[0]);
+            org_build_attribute(ctx, STR(mark->sub_beg), mark->sub_end - mark->sub_beg, &det.target.name, &attr_build[0]);
             ORG_ENTER_SPAN(ORG_SPAN_TARGET, &det.target);
             ORG_LEAVE_SPAN(ORG_SPAN_TARGET, &det.target);
             break;
 
         case ORG_MARK_EXPORT_SNIPPET_OBJECT:
-            org_build_attribute(STR(mark->sub_beg), mark->sub_end - mark->sub_beg, &det.snippet.backend, &attr_build[0]);
+            org_build_attribute(ctx, STR(mark->sub_beg), mark->sub_end - mark->sub_beg, &det.snippet.backend, &attr_build[0]);
             ORG_ENTER_SPAN(ORG_SPAN_EXPORT_SNIPPET, &det.snippet);
             ORG_TEXT_INSECURE(ORG_TEXT_EXPORT, STR(mark->desc_beg), mark->desc_end - mark->desc_beg);
             ORG_LEAVE_SPAN(ORG_SPAN_EXPORT_SNIPPET, &det.snippet);
             break;
 
         case ORG_MARK_INLINE_SRC_OBJECT:
-            org_build_attribute(STR(mark->sub_beg), mark->sub_end - mark->sub_beg, &det.inline_src.lang, &attr_build[0]);
-            org_build_attribute(STR(mark->aux_beg), mark->aux_end - mark->aux_beg, &det.inline_src.params, &attr_build[1]);
+            org_build_attribute(ctx, STR(mark->sub_beg), mark->sub_end - mark->sub_beg, &det.inline_src.lang, &attr_build[0]);
+            org_build_attribute(ctx, STR(mark->aux_beg), mark->aux_end - mark->aux_beg, &det.inline_src.params, &attr_build[1]);
             ORG_ENTER_SPAN(ORG_SPAN_INLINE_SRC, &det.inline_src);
             ORG_TEXT_INSECURE(ORG_TEXT_CODE, STR(mark->desc_beg), mark->desc_end - mark->desc_beg);
             ORG_LEAVE_SPAN(ORG_SPAN_INLINE_SRC, &det.inline_src);
@@ -4868,7 +4936,7 @@ org_process_verbatim_block_contents(ORG_CTX* ctx, ORG_TEXTTYPE text_type, const 
             has_coderef = true;
             end = label_beg;
             memset(&coderef_det, 0, sizeof(coderef_det));
-            org_build_attribute(STR(name_beg), name_end - name_beg, &coderef_det.name, &coderef_build);
+            org_build_attribute(ctx, STR(name_beg), name_end - name_beg, &coderef_det.name, &coderef_build);
             coderef_det.line_number = (first_line > 0) ? first_line + (unsigned) i : 0;
             coderef_det.is_label_retained = code_opts->retain_labels;
             ORG_ENTER_SPAN(ORG_SPAN_CODEREF, &coderef_det);
@@ -5013,11 +5081,11 @@ org_process_leaf_block(ORG_CTX* ctx, const ORG_BLOCK* block)
 
             org_analyze_headline(ctx, block->beg, block->end, &info);
             det.headline.level = info.level;
-            org_build_attribute(STR(info.todo_beg), info.todo_end - info.todo_beg, &det.headline.todo, &attr_build[0]);
+            org_build_attribute(ctx, STR(info.todo_beg), info.todo_end - info.todo_beg, &det.headline.todo, &attr_build[0]);
             det.headline.is_done = info.is_done;
             det.headline.priority = info.priority;
             det.headline.is_commented = info.is_commented;
-            org_build_attribute(STR(info.tags_beg), info.tags_end - info.tags_beg, &det.headline.tags, &attr_build[1]);
+            org_build_attribute(ctx, STR(info.tags_beg), info.tags_end - info.tags_beg, &det.headline.tags, &attr_build[1]);
 
             title.beg = info.title_beg;
             title.end = info.title_end;
@@ -5062,8 +5130,8 @@ org_process_leaf_block(ORG_CTX* ctx, const ORG_BLOCK* block)
             OFF key_end, value_beg;
 
             org_is_keyword_line(ctx, block->beg, block->end, &key_end, &value_beg);
-            org_build_attribute(STR(block->beg + 2), key_end - (block->beg + 2), &det.keyword.key, &attr_build[0]);
-            org_build_attribute(STR(value_beg), block->end - value_beg, &det.keyword.value, &attr_build[1]);
+            org_build_attribute(ctx, STR(block->beg + 2), key_end - (block->beg + 2), &det.keyword.key, &attr_build[0]);
+            org_build_attribute(ctx, STR(value_beg), block->end - value_beg, &det.keyword.value, &attr_build[1]);
             det.keyword.is_affiliated = ((block->flags & ORG_BLOCK_AFFILIATED) != 0);
             ORG_ENTER_BLOCK(ORG_BLOCK_KEYWORD, &det.keyword);
             ORG_LEAVE_BLOCK(ORG_BLOCK_KEYWORD, &det.keyword);
@@ -5077,9 +5145,9 @@ org_process_leaf_block(ORG_CTX* ctx, const ORG_BLOCK* block)
 
             org_analyze_block_begin_line(ctx, block->beg, block->end, &name_beg, &name_end, &params_beg);
             lang_end = org_skip_word(ctx, params_beg, block->end);
-            org_build_attribute(STR(params_beg), lang_end - params_beg, &det.src.lang, &attr_build[0]);
+            org_build_attribute(ctx, STR(params_beg), lang_end - params_beg, &det.src.lang, &attr_build[0]);
             params_beg = org_skip_blanks(ctx, lang_end, block->end);
-            org_build_attribute(STR(params_beg), block->end - params_beg, &det.src.params, &attr_build[1]);
+            org_build_attribute(ctx, STR(params_beg), block->end - params_beg, &det.src.params, &attr_build[1]);
             org_get_block_code_options(ctx, block, &code_opts);
             has_code_opts = true;
             first_line = org_code_block_first_line(ctx, block);
@@ -5100,7 +5168,7 @@ org_process_leaf_block(ORG_CTX* ctx, const ORG_BLOCK* block)
                 return 0;
 
             org_analyze_block_begin_line(ctx, block->beg, block->end, &name_beg, &name_end, &params_beg);
-            org_build_attribute(STR(params_beg),
+            org_build_attribute(ctx, STR(params_beg),
                         org_skip_word(ctx, params_beg, block->end) - params_beg, &det.export_.backend, &attr_build[0]);
             detail = &det.export_;
             text_type = ORG_TEXT_EXPORT;
@@ -5113,7 +5181,7 @@ org_process_leaf_block(ORG_CTX* ctx, const ORG_BLOCK* block)
             OFF name_beg, name_end, params_beg;
 
             org_analyze_block_begin_line(ctx, block->beg, block->end, &name_beg, &name_end, &params_beg);
-            org_build_attribute(STR(params_beg), block->end - params_beg, &det.example.switches, &attr_build[0]);
+            org_build_attribute(ctx, STR(params_beg), block->end - params_beg, &det.example.switches, &attr_build[0]);
             org_get_block_code_options(ctx, block, &code_opts);
             has_code_opts = true;
             first_line = org_code_block_first_line(ctx, block);
@@ -5133,7 +5201,7 @@ org_process_leaf_block(ORG_CTX* ctx, const ORG_BLOCK* block)
 
             while(name_end < block->end  &&  CH(name_end) != _T('}'))
                 name_end++;
-            org_build_attribute(STR(name_beg), name_end - name_beg, &det.latex_env.name, &attr_build[0]);
+            org_build_attribute(ctx, STR(name_beg), name_end - name_beg, &det.latex_env.name, &attr_build[0]);
             detail = &det.latex_env;
             text_type = ORG_TEXT_LATEX;
             break;
@@ -5288,7 +5356,7 @@ org_process_blocks(ORG_CTX* ctx, int byte_beg, int byte_end)
 
                 det.section.level = info.level;
                 det.section.is_commented = info.is_commented;
-                org_build_attribute(STR(info.tags_beg), info.tags_end - info.tags_beg, &det.section.tags, &attr_build[0]);
+                org_build_attribute(ctx, STR(info.tags_beg), info.tags_end - info.tags_beg, &det.section.tags, &attr_build[0]);
                 detail = &det.section;
                 break;
             }
@@ -5299,11 +5367,11 @@ org_process_blocks(ORG_CTX* ctx, int byte_beg, int byte_end)
 
                 org_analyze_headline(ctx, block->beg, block->end, &info);
                 det.inlinetask.level = info.level;
-                org_build_attribute(STR(info.todo_beg), info.todo_end - info.todo_beg, &det.inlinetask.todo, &attr_build[0]);
+                org_build_attribute(ctx, STR(info.todo_beg), info.todo_end - info.todo_beg, &det.inlinetask.todo, &attr_build[0]);
                 det.inlinetask.is_done = info.is_done;
                 det.inlinetask.priority = info.priority;
                 det.inlinetask.is_commented = info.is_commented;
-                org_build_attribute(STR(info.tags_beg), info.tags_end - info.tags_beg, &det.inlinetask.tags, &attr_build[1]);
+                org_build_attribute(ctx, STR(info.tags_beg), info.tags_end - info.tags_beg, &det.inlinetask.tags, &attr_build[1]);
                 detail = &det.inlinetask;
                 break;
             }
@@ -5328,14 +5396,14 @@ org_process_blocks(ORG_CTX* ctx, int byte_beg, int byte_end)
                 OFF name_beg, name_end, params_beg;
 
                 org_analyze_block_begin_line(ctx, block->beg, block->end, &name_beg, &name_end, &params_beg);
-                org_build_attribute(STR(name_beg), name_end - name_beg, &det.special.name, &attr_build[0]);
-                org_build_attribute(STR(params_beg), block->end - params_beg, &det.special.params, &attr_build[1]);
+                org_build_attribute(ctx, STR(name_beg), name_end - name_beg, &det.special.name, &attr_build[0]);
+                org_build_attribute(ctx, STR(params_beg), block->end - params_beg, &det.special.params, &attr_build[1]);
                 detail = &det.special;
                 break;
             }
 
             case ORG_BLOCK_DRAWER:
-                org_build_attribute(STR(block->beg + 1), block->end - block->beg - 2, &det.drawer.name, &attr_build[0]);
+                org_build_attribute(ctx, STR(block->beg + 1), block->end - block->beg - 2, &det.drawer.name, &attr_build[0]);
                 detail = &det.drawer;
                 break;
 
@@ -5345,8 +5413,8 @@ org_process_blocks(ORG_CTX* ctx, int byte_beg, int byte_end)
                 OFF name_end = org_skip_word(ctx, name_beg, block->end);
                 OFF params_beg = org_skip_blanks(ctx, name_end, block->end);
 
-                org_build_attribute(STR(name_beg), name_end - name_beg, &det.dynamic.name, &attr_build[0]);
-                org_build_attribute(STR(params_beg), block->end - params_beg, &det.dynamic.params, &attr_build[1]);
+                org_build_attribute(ctx, STR(name_beg), name_end - name_beg, &det.dynamic.name, &attr_build[0]);
+                org_build_attribute(ctx, STR(params_beg), block->end - params_beg, &det.dynamic.params, &attr_build[1]);
                 detail = &det.dynamic;
                 break;
             }
@@ -6245,7 +6313,7 @@ org_process_footnote_def(ORG_CTX* ctx, int index)
     memset(&det, 0, sizeof(ORG_BLOCK_FOOTNOTE_DEF_DETAIL));
     det.id = fn.id;
     det.ref_count = fn.ref_count;
-    org_build_attribute(fn.label, fn.label_size, &det.label, &label_build);
+    org_build_attribute(ctx, fn.label, fn.label_size, &det.label, &label_build);
     det.is_defined = (fn.def_open_off >= 0  ||  fn.has_inline_def);
 
     ORG_ENTER_BLOCK(ORG_BLOCK_FOOTNOTE_DEF, &det);
@@ -6396,6 +6464,11 @@ org_parse(const ORG_CHAR* text, ORG_SIZE size, const ORG_PARSER* parser, void* u
     free(ctx.marks);
     free(ctx.block_bytes);
     free(ctx.containers);
+    while(ctx.attribute_storages != NULL) {
+        ORG_ATTRIBUTE_STORAGE* next = ctx.attribute_storages->next;
+        free(ctx.attribute_storages);
+        ctx.attribute_storages = next;
+    }
 
     return ret;
 }

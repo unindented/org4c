@@ -281,22 +281,36 @@ render_utf8_codepoint(ORG_HTML* r, unsigned codepoint,
 }
 
 static void
-render_attribute(ORG_HTML* r, const ORG_ATTRIBUTE* attr,
-                 void (*fn_append)(ORG_HTML*, const ORG_CHAR*, ORG_SIZE))
+render_attribute_part(ORG_HTML* r, const ORG_ATTRIBUTE* attr, ORG_OFFSET beg, ORG_OFFSET end,
+                      void (*fn_append)(ORG_HTML*, const ORG_CHAR*, ORG_SIZE))
 {
     int i;
 
     for(i = 0; attr->substr_offsets[i] < attr->size; i++) {
         ORG_TEXTTYPE type = attr->substr_types[i];
         ORG_OFFSET off = attr->substr_offsets[i];
-        ORG_SIZE size = attr->substr_offsets[i+1] - off;
-        const ORG_CHAR* text = attr->text + off;
+        ORG_OFFSET off_end = attr->substr_offsets[i+1];
+
+        /* Clip the substring to [beg, end). */
+        if(off < beg)
+            off = beg;
+        if(off_end > end)
+            off_end = end;
+        if(off >= off_end)
+            continue;
 
         switch(type) {
             case ORG_TEXT_NULLCHAR:  render_utf8_codepoint(r, 0x0000, render_verbatim); break;
-            default:                 fn_append(r, text, size); break;
+            default:                 fn_append(r, attr->text + off, off_end - off); break;
         }
     }
+}
+
+static void
+render_attribute(ORG_HTML* r, const ORG_ATTRIBUTE* attr,
+                 void (*fn_append)(ORG_HTML*, const ORG_CHAR*, ORG_SIZE))
+{
+    render_attribute_part(r, attr, 0, attr->size, fn_append);
 }
 
 /* Case insensitive comparison of the attribute with the given (lower-case)
@@ -888,10 +902,10 @@ render_file_link_path(ORG_HTML* r, const ORG_ATTRIBUTE* path)
     }
 
     if(size > 4  &&  memcmp(path->text + size - 4, ".org", 4) == 0) {
-        render_url_escaped(r, path->text, size - 4);
+        render_attribute_part(r, path, 0, size - 4, render_url_escaped);
         RENDER_VERBATIM(r, ".html");
     } else {
-        render_url_escaped(r, path->text, size);
+        render_attribute_part(r, path, 0, size, render_url_escaped);
     }
 }
 
@@ -913,15 +927,11 @@ render_link_href(ORG_HTML* r, const ORG_SPAN_LINK_DETAIL* det)
         RENDER_VERBATIM(r, "#ID-");
         render_attribute(r, &det->path, render_url_escaped);
     } else if(attribute_eq(&det->type, "fuzzy")) {
-        ORG_ATTRIBUTE path = det->path;
-
         /* "*Heading" is a link to a headline. */
-        if(path.size > 0  &&  path.text[0] == '*') {
-            path.text++;
-            path.size--;
-        }
+        ORG_OFFSET beg = (det->path.size > 0  &&  det->path.text[0] == '*') ? 1 : 0;
+
         RENDER_VERBATIM(r, "#");
-        render_url_escaped(r, path.text, path.size);
+        render_attribute_part(r, &det->path, beg, det->path.size, render_url_escaped);
     } else if(attribute_eq(&det->type, "doi")) {
         RENDER_VERBATIM(r, "https://doi.org/");
         render_attribute(r, &det->path, render_url_escaped);
@@ -971,7 +981,7 @@ render_open_link_span(ORG_HTML* r, const ORG_SPAN_LINK_DETAIL* det, int with_att
             while(basename > 0  &&  det->path.text[basename-1] != '/')
                 basename--;
             RENDER_VERBATIM(r, " alt=\"");
-            render_html_escaped(r, det->path.text + basename, det->path.size - basename);
+            render_attribute_part(r, &det->path, basename, det->path.size, render_html_escaped);
             RENDER_VERBATIM(r, "\"");
         } else if(is_attr_html_output(alt)) {
             RENDER_VERBATIM(r, " alt=\"");

@@ -19,6 +19,10 @@ pathological = {
     "U+0000 in emphasis, verbatim and links":
             ("*a\u0000b* /c\u0000/ =d\u0000e= [[x][f\u0000g]]",
             re.compile("<b>a\ufffdb</b> <i>c\ufffd</i> <code>d\ufffde</code> <a href=\"#x\">f\ufffdg</a>")),
+    "U+0000 in link targets":
+            ("[[http://x\u0000y][a]] [[x\u0000y]] [[file:d/e\u0000f.png]]",
+            re.compile("<a href=\"http://x\ufffdy\">a</a> <a href=\"#x\ufffdy\">x\ufffdy</a>.*"
+                       "<img src=\"d/e\ufffdf.png\" alt=\"e\ufffdf.png\">", re.DOTALL)),
     "Windows line endings":
             ("* foo\r\nbar\r\nbaz\r\n",
             re.compile("^<h1>foo</h1>\n<p>bar\nbaz</p>")),
