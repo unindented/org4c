@@ -315,9 +315,16 @@ struct ORG_CTX_tag {
      * They also hold for the detached texts (macro expansions), which are
      * made only of the document characters and a few ASCII ones (spaces,
      * commas, backslashes, digits). */
-    bool doc_has_cr;                /* The document contains some '\r'. */
     bool doc_has_nul;               /* The document contains some '\0'. */
     bool doc_has_radio_opener;      /* The document contains some "<<<". */
+
+    /* For the optimized scan for ends of lines (see org_line_end()): There is
+     * no '\r' in [cr_scan_beg, cr_horizon), and no '\n' in [lf_scan_beg,
+     * lf_horizon). */
+    OFF cr_scan_beg;
+    OFF cr_horizon;
+    OFF lf_scan_beg;
+    OFF lf_horizon;
 
     /* Storages of the non-trivial attributes (i.e. those with some NUL). They
      * are kept until the end of the parsing, as a detail (and its attributes)
@@ -565,9 +572,13 @@ struct ORG_VERBATIMLINE_tag {
 
 
 #if defined ORG4C_USE_UTF16
+    #include <wchar.h>  /* wmemchr() */
+
+    #define org_memchr wmemchr
     #define org_strchr wcschr
     #define org_strlen wcslen
 #else
+    #define org_memchr memchr
     #define org_strchr strchr
     #define org_strlen strlen
 #endif
@@ -1101,14 +1112,12 @@ org_check_doc_chars(ORG_CTX* ctx)
 {
 #if defined ORG4C_USE_UTF16
     /* Conservative (memchr() works only for 8-bit characters). */
-    ctx->doc_has_cr = true;
     ctx->doc_has_nul = true;
     ctx->doc_has_radio_opener = true;
 #else
     const CHAR* ptr = ctx->text;
     const CHAR* end = ctx->text + ctx->size;
 
-    ctx->doc_has_cr = (ctx->size > 0  &&  memchr(ctx->text, '\r', ctx->size) != NULL);
     ctx->doc_has_nul = (ctx->size > 0  &&  memchr(ctx->text, '\0', ctx->size) != NULL);
 
     /* Look for "<<<" (the opener of a radio target). */
@@ -1131,25 +1140,32 @@ org_check_doc_chars(ORG_CTX* ctx)
 static OFF
 org_line_end(ORG_CTX* ctx, OFF off)
 {
-#if !defined ORG4C_USE_UTF16
-    /* Optimization: Without any '\r' in the document, only '\n' can end the
-     * line; and memchr() is much faster than a plain loop. */
-    if(!ctx->doc_has_cr) {
-        const CHAR* ptr;
+    /* NOTE: This is one of the hottest loops in our code. Hence we try to
+     * optimize this (as md4c does), assuming memchr() is highly optimized and
+     * uses SIMD if it's available on the platform: We remember how far there
+     * is no '\r' and no '\n' (the horizons), so each of them is searched for
+     * only once in each chunk of the text. (Unlike in md4c, the lines are not
+     * always visited in their order, so a horizon is valid only after the
+     * offset where the search for it started.) */
+    while(off < ctx->size  &&  !ISNEWLINE(off)) {
+        /* Don't look too much ahead to keep the text in CPU cache as we scan
+         * over it twice here. */
+        static const SZ max_lookahead = 8192;
 
-        if(off >= ctx->size)
-            return ctx->size;
-        ptr = (const CHAR*) memchr(STR(off), '\n', ctx->size - off);
-        return (ptr != NULL ? (OFF) (ptr - ctx->text) : ctx->size);
+        if(off < ctx->cr_scan_beg  ||  (ctx->cr_horizon <= off  &&  ctx->cr_horizon < ctx->size)) {
+            SZ scan_len = MIN(max_lookahead, ctx->size - off);
+            const CHAR* ptr = (const CHAR*) org_memchr(STR(off), _T('\r'), scan_len);
+            ctx->cr_scan_beg = off;
+            ctx->cr_horizon = (ptr != NULL ? (OFF) (ptr - ctx->text) : off + scan_len);
+        }
+        if(off < ctx->lf_scan_beg  ||  (ctx->lf_horizon <= off  &&  ctx->lf_horizon < ctx->size)) {
+            SZ scan_len = MIN(max_lookahead, ctx->size - off);
+            const CHAR* ptr = (const CHAR*) org_memchr(STR(off), _T('\n'), scan_len);
+            ctx->lf_scan_beg = off;
+            ctx->lf_horizon = (ptr != NULL ? (OFF) (ptr - ctx->text) : off + scan_len);
+        }
+        off = MIN(ctx->cr_horizon, ctx->lf_horizon);
     }
-#endif
-
-    /* Optimization: Use some loop unrolling. */
-    while(off + 3 < ctx->size  &&  !ISNEWLINE(off+0)  &&  !ISNEWLINE(off+1)
-                               &&  !ISNEWLINE(off+2)  &&  !ISNEWLINE(off+3))
-        off += 4;
-    while(off < ctx->size  &&  !ISNEWLINE(off))
-        off++;
     return off;
 }
 
@@ -3975,6 +3991,10 @@ org_process_detached_text(ORG_CTX* ctx, const CHAR* text, SZ size)
     ctx->bracket_matches = NULL;
     ctx->alloc_bracket_matches = 0;
     ctx->bracket_matches_valid = false;
+    ctx->cr_scan_beg = 0;
+    ctx->cr_horizon = 0;
+    ctx->lf_scan_beg = 0;
+    ctx->lf_horizon = 0;
     ctx->is_detached = true;
 
     line.beg = 0;
