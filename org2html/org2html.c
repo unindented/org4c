@@ -393,9 +393,14 @@ static const CMDLINE_OPTION cmdline_options[] = {
     {  0,  "fverbatim-entities",            'e', 0 },
     {  0,  "fverbatim-special-strings",     'S', 0 },
 
+    {  0,  "fno-drawers",                   'D', 0 },
     {  0,  "fno-export-blocks",             'E', 0 },
+    {  0,  "fno-footnotes",                 'F', 0 },
     {  0,  "fno-latex",                     'X', 0 },
     {  0,  "fno-plain-links",               'L', 0 },
+    {  0,  "fno-priority",                  'P', 0 },
+    {  0,  "fno-tags",                      'G', 0 },
+    {  0,  "fno-todo",                      'T', 0 },
 
     /* Undocumented option for replaying test cases from fuzzers. */
     {  0,  "replay-fuzz",                   'r', 0 },
@@ -439,6 +444,11 @@ usage(void)
         "      --fignore-options\n"
         "                       Ignore the in-buffer #+OPTIONS of the document\n"
         "                       (otherwise they override the respective options)\n"
+        "      --fno-drawers    Do not output any drawers\n"
+        "      --fno-footnotes  Do not output the footnotes\n"
+        "      --fno-priority   Do not output the priority cookies of headlines\n"
+        "      --fno-tags       Do not output the tags of headlines\n"
+        "      --fno-todo       Do not output the TODO keywords of headlines\n"
         "      --ftoplevel-h2   Render level-N headlines as <hN+1>, as ox-html does\n"
         "                       (and, in full HTML or XHTML mode, #+TITLE as <h1>)\n"
         "      --fverbatim-entities\n"
@@ -495,9 +505,14 @@ cmdline_callback(int opt, char const* value, void* data)
         case 'e':   renderer_flags |= ORG_HTML_FLAG_VERBATIM_ENTITIES; break;
         case 'S':   renderer_flags |= ORG_HTML_FLAG_VERBATIM_SPECIAL_STRINGS; break;
 
+        case 'D':   renderer_flags |= ORG_HTML_FLAG_NO_DRAWERS; break;
         case 'E':   parser_flags |= ORG_FLAG_NOEXPORTBLOCKS; break;
+        case 'F':   renderer_flags |= ORG_HTML_FLAG_NO_FOOTNOTES; break;
         case 'X':   parser_flags |= ORG_FLAG_NOLATEX; break;
         case 'L':   parser_flags |= ORG_FLAG_NOPLAINLINKS; break;
+        case 'P':   renderer_flags |= ORG_HTML_FLAG_NO_PRIORITY; break;
+        case 'G':   renderer_flags |= ORG_HTML_FLAG_NO_TAGS; break;
+        case 'T':   renderer_flags |= ORG_HTML_FLAG_NO_TODO; break;
 
         default:
             fprintf(stderr, "Illegal option: %s\n", value);
