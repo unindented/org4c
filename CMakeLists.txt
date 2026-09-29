@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 
 project(ORG4C
-    VERSION "0.1.1"
+    VERSION "0.1.2"
     HOMEPAGE_URL "https://github.com/unindented/org4c"
     LANGUAGES C
 )
