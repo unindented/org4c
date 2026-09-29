@@ -181,3 +181,16 @@ The definition has to start at the column 0.
 </div>
 </div>
 ````````````````````````````````
+
+With `--fno-footnotes` (`ORG_HTML_FLAG_NO_FOOTNOTES`), neither the references
+nor the definitions are output (as Org's `f:nil`).
+
+```````````````````````````````` example
+A[fn:1] and B[fn::inline].
+
+[fn:1] Defined.
+.
+<p>A and B.</p>
+.
+--fno-footnotes
+````````````````````````````````

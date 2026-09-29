@@ -104,6 +104,43 @@ cookie, and it may end with tags.
 <h1>Title :not:tags: here</h1>
 ````````````````````````````````
 
+With `--fno-todo`, `--fno-priority` and `--fno-tags` (i.e.
+`ORG_HTML_FLAG_NO_TODO`, `ORG_HTML_FLAG_NO_PRIORITY` and `ORG_HTML_FLAG_NO_TAGS`),
+the respective parts of the headline are not output (as Org's `todo:nil`,
+`pri:nil` and `tags:nil`).
+
+```````````````````````````````` example
+* TODO [#A] Write the spec :work:urgent:
+.
+<h1><span class="priority">[A]</span> Write the spec&#xa0;&#xa0;&#xa0;<span class="tag"><span class="work">work</span>&#xa0;<span class="urgent">urgent</span></span></h1>
+.
+--fno-todo
+````````````````````````````````
+
+```````````````````````````````` example
+* TODO [#A] Write the spec :work:urgent:
+.
+<h1><span class="todo TODO">TODO</span> Write the spec&#xa0;&#xa0;&#xa0;<span class="tag"><span class="work">work</span>&#xa0;<span class="urgent">urgent</span></span></h1>
+.
+--fno-priority
+````````````````````````````````
+
+```````````````````````````````` example
+* TODO [#A] Write the spec :work:urgent:
+.
+<h1><span class="todo TODO">TODO</span> <span class="priority">[A]</span> Write the spec</h1>
+.
+--fno-tags
+````````````````````````````````
+
+```````````````````````````````` example
+* TODO [#A] Write the spec :work:urgent:
+.
+<h1>Write the spec</h1>
+.
+--fno-todo --fno-priority --fno-tags
+````````````````````````````````
+
 The TODO keywords can be customized by `#+TODO:` (or `#+SEQ_TODO:`,
 `#+TYP_TODO:`). The keywords after `|` are the "done" ones; if there is no
 `|`, only the last keyword is. Then `TODO` and `DONE` are not keywords
@@ -473,6 +510,17 @@ Unknown names are not entities (they are LaTeX fragments, see below).
 \notanentity
 .
 <p>\notanentity</p>
+````````````````````````````````
+
+With `--fverbatim-entities` (`ORG_HTML_FLAG_VERBATIM_ENTITIES`), the entities
+are output as written (as Org's `e:nil`).
+
+```````````````````````````````` example
+\alpha \alpha{}beta \to
+.
+<p>\alpha \alpha{}beta \to</p>
+.
+--fverbatim-entities
 ````````````````````````````````
 
 LaTeX fragments are passed to the output (so they may be processed by
@@ -1351,6 +1399,20 @@ bar
 .
 <p>:FOO:
 bar</p>
+````````````````````````````````
+
+With `--fno-drawers` (`ORG_HTML_FLAG_NO_DRAWERS`), no drawer is output (as
+Org's `d:nil`).
+
+```````````````````````````````` example
+:MYDRAWER:
+foo
+:END:
+bar
+.
+<p>bar</p>
+.
+--fno-drawers
 ````````````````````````````````
 
 # Keywords and Comments

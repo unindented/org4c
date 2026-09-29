@@ -1,0 +1,58 @@
+# Hard Soft Breaks
+
+With the flag `ORG_HTML_FLAG_HARD_SOFT_BREAKS` (`--fhard-soft-breaks`), all soft
+line breaks are rendered as hard ones (as Org's `\n:t`).
+
+```````````````````````````````` example
+foo
+bar
+baz
+.
+<p>foo<br>
+bar<br>
+baz</p>
+.
+--fhard-soft-breaks
+````````````````````````````````
+
+This applies also to the paragraphs in list items.
+
+```````````````````````````````` example
+- a
+  b
+.
+<ul>
+<li>a<br>
+b</li>
+</ul>
+.
+--fhard-soft-breaks
+````````````````````````````````
+
+Verbatim contents are not affected.
+
+```````````````````````````````` example
+#+BEGIN_SRC c
+x
+y
+#+END_SRC
+.
+<pre><code class="language-c">x
+y
+</code></pre>
+.
+--fhard-soft-breaks
+````````````````````````````````
+
+The in-buffer `#+OPTIONS:` override the flag (unless `--fignore-options`).
+
+```````````````````````````````` example
+#+OPTIONS: \n:nil
+foo
+bar
+.
+<p>foo
+bar</p>
+.
+--fhard-soft-breaks
+````````````````````````````````

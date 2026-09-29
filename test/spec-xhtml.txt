@@ -1,0 +1,45 @@
+# XHTML
+
+With the flag `ORG_HTML_FLAG_XHTML` (`--xhtml`), the empty elements are closed
+as XML requires.
+
+```````````````````````````````` example
+a\\
+b
+.
+<p>a<br />
+b</p>
+.
+-x
+````````````````````````````````
+
+```````````````````````````````` example
+-----
+.
+<hr />
+.
+-x
+````````````````````````````````
+
+```````````````````````````````` example
+[[file:x.png]]
+.
+<div class="figure">
+<p><img src="x.png" alt="x.png" />
+</p>
+</div>
+.
+-x
+````````````````````````````````
+
+```````````````````````````````` example
+#+BEGIN_VERSE
+a
+b
+#+END_VERSE
+.
+<p class="verse">a<br />
+b</p>
+.
+-x
+````````````````````````````````
