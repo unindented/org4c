@@ -581,6 +581,23 @@ is removed.
 </ul>
 ````````````````````````````````
 
+Unlike in `ox-html` (which outputs them raw), the HTML special characters
+are escaped, in the environments as well as in the fragments (see above).
+Otherwise e.g. `x<y` would start an HTML tag; the browser unescapes them
+before MathJax sees the text, so the formulas are the same.
+
+```````````````````````````````` example
+\begin{align}
+a &< b \\
+c &= d
+\end{align}
+.
+\begin{align}
+a &amp;&lt; b \\
+c &amp;= d
+\end{align}
+````````````````````````````````
+
 ```````````````````````````````` example
 \begin{equation}
 no end
