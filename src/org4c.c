@@ -25,10 +25,10 @@
 
 #include <limits.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stddef.h>
 #include <string.h>
 
 #include "org4c.h"
@@ -55,7 +55,7 @@
 #endif
 
 /* Misc. macros. */
-#define SIZEOF_ARRAY(a)     (sizeof(a) / sizeof(a[0]))
+#define SIZEOF_ARRAY(a)     (sizeof(a) / sizeof((a)[0]))
 
 #define STRINGIZE_(x)       #x
 #define STRINGIZE(x)        STRINGIZE_(x)
@@ -103,7 +103,7 @@
 #endif
 
 /* Suppress "unused parameter" warnings. */
-#define ORG_UNUSED(x)               ((void)x)
+#define ORG_UNUSED(x)               ((void)(x))
 
 
 /******************************
@@ -742,7 +742,7 @@ org_text_with_null_replacement(ORG_CTX* ctx, ORG_TEXTTYPE type, const CHAR* str,
 
 #define ORG_TEXT(type, str, size)                                           \
     do {                                                                    \
-        if(size > 0) {                                                      \
+        if((size) > 0) {                                                    \
             ret = ctx->parser.text((type), (str), (size), ctx->userdata);   \
             if(ret != 0) {                                                  \
                 ORG_LOG("Aborted from text() callback.");                   \
@@ -753,7 +753,7 @@ org_text_with_null_replacement(ORG_CTX* ctx, ORG_TEXTTYPE type, const CHAR* str,
 
 #define ORG_TEXT_INSECURE(type, str, size)                                  \
     do {                                                                    \
-        if(size > 0) {                                                      \
+        if((size) > 0) {                                                    \
             ret = org_text_with_null_replacement(ctx, type, str, size);     \
             if(ret != 0) {                                                  \
                 ORG_LOG("Aborted from text() callback.");                   \
