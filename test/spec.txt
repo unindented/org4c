@@ -1285,6 +1285,24 @@ fi
 </ul>
 ````````````````````````````````
 
+With the switch `-i`, the indentation is preserved as it is.
+
+```````````````````````````````` example
+#+begin_example -i
+  →A
+    B
+#+end_example
+#+begin_src sh -n -i
+  x
+#+end_src
+.
+<pre class="example">  →A
+    B
+</pre>
+<pre><code class="language-sh"><span class="linenr">1: </span>  x
+</code></pre>
+````````````````````````````````
+
 Quote and center blocks contain other elements.
 
 ```````````````````````````````` example

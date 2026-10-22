@@ -4683,6 +4683,7 @@ struct ORG_CODE_OPTIONS_tag {
     int numbering;              /* 0: none; 1: "-n"; 2: "+n" (continue the numbering of the previous block) */
     unsigned number;            /* The optional number following "-n" or "+n"; or zero. */
     int retain_labels;          /* Zero for "-r". */
+    int preserve_indent;        /* Non-zero for "-i". */
     const CHAR* label_pre;      /* Label format (split at its "%s"). */
     SZ label_pre_size;
     const CHAR* label_post;
@@ -4726,6 +4727,8 @@ org_parse_code_switches(ORG_CTX* ctx, OFF beg, OFF end, ORG_CODE_OPTIONS* opts)
             }
         } else if(CH(word_beg) == _T('-')  &&  CH(word_beg+1) == _T('r')) {
             opts->retain_labels = false;
+        } else if(CH(word_beg) == _T('-')  &&  CH(word_beg+1) == _T('i')) {
+            opts->preserve_indent = true;
         } else if(CH(word_beg) == _T('-')  &&  CH(word_beg+1) == _T('l')) {
             /* -l "format" */
             OFF fmt_beg = org_skip_blanks(ctx, word_end, end);
@@ -4927,8 +4930,9 @@ org_process_verbatim_block_contents(ORG_CTX* ctx, ORG_TEXTTYPE text_type, const 
     SZ i;
     int ret = 0;
 
-    /* Org removes the common indentation of all the (non-blank) lines. */
-    if(strip_indent) {
+    /* Org removes the common indentation of all the (non-blank) lines
+     * (unless "-i" is used). */
+    if(strip_indent  &&  !(code_opts != NULL  &&  code_opts->preserve_indent)) {
         for(i = 0; i < n_lines; i++) {
             if(lines[i].beg < lines[i].end  &&  lines[i].indent < min_indent)
                 min_indent = lines[i].indent;
