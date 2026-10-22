@@ -807,6 +807,18 @@ xhttps://example.com (no link) and [[https://a.com][https://b.com]]
 <p>xhttps://example.com (no link) and <a href="https://a.com">https://b.com</a></p>
 ````````````````````````````````
 
+The link may contain parenthesized parts (with any of `(`, `[` and `<`
+paired with any of `)`, `]` and `>`), nested at most two levels deep, and
+it may end with one of them, or with `-`. A `"` is just a punctuation.
+
+```````````````````````````````` example
+https://en.wikipedia.org/wiki/Org_(markup) (https://x.org/a(b)) https://x.org/a[b]c
+https://x.org/((a)) https://x.org/(((a))) https://x.org/a- https://x.org/"a".
+.
+<p><a href="https://en.wikipedia.org/wiki/Org_(markup)">https://en.wikipedia.org/wiki/Org_(markup)</a> (<a href="https://x.org/a(b)">https://x.org/a(b)</a>) <a href="https://x.org/a%5Bb%5Dc">https://x.org/a[b]c</a>
+<a href="https://x.org/((a))">https://x.org/((a))</a> <a href="https://x.org/">https://x.org/</a>(((a))) <a href="https://x.org/a-">https://x.org/a-</a> <a href="https://x.org/%22a">https://x.org/&quot;a</a>&quot;.</p>
+````````````````````````````````
+
 ```````````````````````````````` example
 Plain links can be disabled: https://example.com
 .

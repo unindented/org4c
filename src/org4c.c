@@ -2184,12 +2184,44 @@ org_is_bracket_link(ORG_CTX* ctx, OFF beg, OFF max_end, ORG_MARK* mark)
     return false;
 }
 
-/* Check whether there is a plain link (e.g. "https://example.com") at 'beg'. */
+/* Find the end of a parenthesized part of a plain link path at 'off', i.e.
+ * of any of "([<", followed by any non-bracket characters and (at the top
+ * level only) other parenthesized parts, and any of ")]>". Return zero if
+ * there is none. */
+static OFF
+org_plain_link_group_end(ORG_CTX* ctx, OFF off, OFF max_end, int is_nested)
+{
+    off++;
+    while(off < max_end  &&  !ISUNICODEWHITESPACE(off)) {
+        if(ISANYOF3(off, _T(')'), _T(']'), _T('>')))
+            return off + 1;
+
+        if(ISANYOF3(off, _T('('), _T('['), _T('<'))) {
+            if(is_nested)
+                return 0;
+            off = org_plain_link_group_end(ctx, off, max_end, true);
+            if(off == 0)
+                return 0;
+        } else {
+            off++;
+        }
+    }
+
+    return 0;
+}
+
+/* Check whether there is a plain link (e.g. "https://example.com") at 'beg'.
+ *
+ * As in Org (see org-link-plain-re), the path consists of the non-bracket
+ * characters and the parenthesized parts (nested at most two levels deep),
+ * and it ends with a parenthesized part, '-', '/' or a character other than
+ * a punctuation. */
 static int
 org_is_plain_link(ORG_CTX* ctx, OFF beg, OFF max_end, OFF* p_end)
 {
     OFF off = beg;
-    OFF type_end;
+    OFF end = 0;
+    int is_first = true;
 
     while(off < max_end  &&  ISALPHA(off))
         off++;
@@ -2197,19 +2229,28 @@ org_is_plain_link(ORG_CTX* ctx, OFF beg, OFF max_end, OFF* p_end)
         return false;
     if(!org_is_link_type(ctx, beg, off, org_plain_link_types, (int) SIZEOF_ARRAY(org_plain_link_types)))
         return false;
-    type_end = off;
 
     off++;
-    while(off < max_end  &&  !ISUNICODEWHITESPACE(off)  &&  !ISANYOF(off, _T("()<>[]\"")))
-        off++;
+    while(off < max_end  &&  !ISUNICODEWHITESPACE(off)  &&  !ISANYOF3(off, _T(')'), _T(']'), _T('>'))) {
+        if(ISANYOF3(off, _T('('), _T('['), _T('<'))) {
+            off = org_plain_link_group_end(ctx, off, max_end, false);
+            if(off == 0)
+                break;
+            if(!is_first)
+                end = off;
+        } else {
+            if(!is_first  &&  (!ISPUNCT(off)  ||  ISANYOF2(off, _T('-'), _T('/'))))
+                end = off + 1;
+            off++;
+        }
+        is_first = false;
+    }
 
-    /* The link cannot end with a punctuation (except '/'). */
-    while(off > type_end + 1  &&  ISPUNCT(off-1)  &&  CH(off-1) != _T('/'))
-        off--;
-    if(off <= type_end + 1)
+    /* (The path has at least two characters or parenthesized parts.) */
+    if(end == 0)
         return false;
 
-    *p_end = off;
+    *p_end = end;
     return true;
 }
 

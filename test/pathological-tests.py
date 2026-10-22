@@ -61,6 +61,18 @@ pathological = {
     "many plain links":
             (("https://x.org " * 65000),
             re.compile("(<a href=\"https://x.org\">https://x.org</a> ){64999}")),
+    "many plain links with parentheses":
+            (("https://x.org/(a) " * 65000),
+            re.compile(r"(<a href=\"https://x.org/\(a\)\">https://x.org/\(a\)</a> ){64999}")),
+    "many parentheses in an unclosed plain link group":
+            (("https:(" + "(a)" * 65000),
+            re.compile(r"^<p>https:\((\(a\)){64999}")),
+    "many plain link group openers":
+            (("https:a" + "(a" * 65000),
+            re.compile(r"^<p>https:a(\(a){64999}")),
+    "many plain link types in an unclosed group":
+            (("https:(" + "a.https:" * 65000),
+            re.compile(r"^<p>https:\(a\.<a href=\"https:a\.https:")),
     "many hard breaks":
             (("a\\\\\n" * 65000),
             re.compile("(a<br>\n){64999}a</p>")),

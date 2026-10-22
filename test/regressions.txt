@@ -100,7 +100,7 @@ tp://z
 .
 <p><a href="https://x.org">https://x.org</a> (<a href="https://x.org">https://x.org</a>) xhttps://x.org 1http://x é<a href="http://x">http://x</a>
 HTTPS://x.org hTTP://x :x a: b :: c
-<a href="mailto:a@b.c">mailto:a@b.c</a> <a href="ftp:x">ftp:x</a> <a href="y">file:y</a> news:z httpsx://y
+<a href="mailto:a@b.c">mailto:a@b.c</a> ftp:x file:y news:z httpsx://y
 :<a href="http://x">http://x</a>
 <a href="http://y">http://y</a> <a href="#a">b https://x.org c</a> ht
 tp://z</p>
