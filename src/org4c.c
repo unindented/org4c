@@ -212,7 +212,7 @@ struct ORG_CODE_REF_tag {
     const CHAR* name;
     SZ name_size;
     unsigned line_number;
-    int is_label_retained;
+    int use_label;          /* Zero if the links show the line number instead of the label. */
 };
 
 /* Keyword line "#+KEY: VALUE" (for the macros like "{{{title}}}" and for the
@@ -3651,7 +3651,7 @@ org_process_link(ORG_CTX* ctx, const ORG_LINE* lines, SZ n_lines, int mark_index
     {
         const ORG_CODE_REF* ref = org_lookup_code_ref(ctx, STR(path_beg), target_end - path_beg);
 
-        if(ref != NULL  &&  !ref->is_label_retained) {
+        if(ref != NULL  &&  !ref->use_label) {
             char num[16];
             CHAR num_text[16];
             int i;
@@ -4763,7 +4763,8 @@ typedef struct ORG_CODE_OPTIONS_tag ORG_CODE_OPTIONS;
 struct ORG_CODE_OPTIONS_tag {
     int numbering;              /* 0: none; 1: "-n"; 2: "+n" (continue the numbering of the previous block) */
     unsigned number;            /* The optional number following "-n" or "+n"; or zero. */
-    int retain_labels;          /* Zero for "-r". */
+    int retain_labels;          /* Zero for "-r" (unless with "-n" and "-k"). */
+    int use_labels;             /* Zero for "-r" or "-k" (the links show the line numbers). */
     int preserve_indent;        /* Non-zero for "-i". */
     const CHAR* label_pre;      /* Label format (split at its "%s"). */
     SZ label_pre_size;
@@ -4779,9 +4780,10 @@ static void
 org_parse_code_switches(ORG_CTX* ctx, OFF beg, OFF end, int only_leading, ORG_CODE_OPTIONS* opts)
 {
     OFF off = beg;
+    int has_r = false;
+    int has_k = false;
 
     memset(opts, 0, sizeof(ORG_CODE_OPTIONS));
-    opts->retain_labels = true;
     opts->label_pre = _T("(ref:");
     opts->label_pre_size = 5;
     opts->label_post = _T(")");
@@ -4814,11 +4816,11 @@ org_parse_code_switches(ORG_CTX* ctx, OFF beg, OFF end, int only_leading, ORG_CO
                 off = num_end;
             }
         } else if(CH(word_beg) == _T('-')  &&  CH(word_beg+1) == _T('r')) {
-            opts->retain_labels = false;
+            has_r = true;
         } else if(CH(word_beg) == _T('-')  &&  CH(word_beg+1) == _T('i')) {
             opts->preserve_indent = true;
         } else if(CH(word_beg) == _T('-')  &&  CH(word_beg+1) == _T('k')) {
-            /* Not supported (but still a switch). */
+            has_k = true;
         } else if(CH(word_beg) == _T('-')  &&  CH(word_beg+1) == _T('l')) {
             /* -l "format" */
             OFF fmt_beg = org_skip_blanks(ctx, word_end, end);
@@ -4853,6 +4855,12 @@ org_parse_code_switches(ORG_CTX* ctx, OFF beg, OFF end, int only_leading, ORG_CO
             break;
         }
     }
+
+    /* As in Org (see org-element-src-block-parser): "-k" keeps the labels
+     * despite "-r" in numbered blocks, but the links always use the line
+     * numbers with it. */
+    opts->retain_labels = (!has_r  ||  (opts->numbering != 0  &&  has_k));
+    opts->use_labels = (opts->retain_labels  &&  !has_k);
 }
 
 /* Find a code reference label at the end of the line [beg, end). */
@@ -4957,7 +4965,7 @@ org_resolve_code_blocks(ORG_CTX* ctx)
                     ref->name = STR(name_beg);
                     ref->name_size = name_end - name_beg;
                     ref->line_number = (first > 0) ? first + (unsigned) i : (unsigned) i + 1;
-                    ref->is_label_retained = opts.retain_labels;
+                    ref->use_label = opts.use_labels;
                 }
             }
         }

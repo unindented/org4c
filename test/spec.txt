@@ -1256,6 +1256,25 @@ See [[(first)]], [[(second)]] and [[(first)][this]].
 <p>See <a href="#coderef-first" class="coderef">first</a>, <a href="#coderef-second" class="coderef">10</a> and <a href="#coderef-first" class="coderef">this</a>.</p>
 ````````````````````````````````
 
+With the switch `-k`, the links show the line numbers, but the labels are
+kept (even with `-r` if the lines are numbered).
+
+```````````````````````````````` example
+#+begin_src sh -k
+x (ref:a)
+#+end_src
+#+begin_src sh -n -r -k
+y (ref:b)
+#+end_src
+See [[(a)]] and [[(b)]].
+.
+<pre><code class="language-sh"><span id="coderef-a" class="coderef-off">x (a)</span>
+</code></pre>
+<pre><code class="language-sh"><span id="coderef-b" class="coderef-off"><span class="linenr">1: </span>y (b)</span>
+</code></pre>
+<p>See <a href="#coderef-a" class="coderef">1</a> and <a href="#coderef-b" class="coderef">1</a>.</p>
+````````````````````````````````
+
 In source blocks, the switches have to precede the header arguments (and
 any other word). In example blocks, they may be anywhere.
 

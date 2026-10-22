@@ -493,7 +493,7 @@ typedef struct ORG_SPAN_LINK_DETAIL {
     int has_description;        /* Non-zero if the link has an explicit description. If not,
                                  * the raw link target is reported as the text of the span
                                  * (for "coderef", the name of the reference; or its line
-                                 * number if its label is not retained). */
+                                 * number with the switches "-r" or "-k"). */
 } ORG_SPAN_LINK_DETAIL;
 
 /* Detailed info for ORG_SPAN_FOOTNOTE_REF. */
@@ -556,7 +556,8 @@ typedef struct ORG_SPAN_INLINE_BABEL_CALL_DETAIL {
 typedef struct ORG_SPAN_CODEREF_DETAIL {
     ORG_ATTRIBUTE name;         /* Name of the reference, e.g. "name" for "(ref:name)". */
     unsigned line_number;       /* Line number (if the lines are numbered); or zero. */
-    int is_label_retained;      /* Zero if the label should not be shown (switch "-r"). */
+    int is_label_retained;      /* Zero if the label should not be shown (switch "-r",
+                                 * unless the lines are numbered and "-k" is used). */
 } ORG_SPAN_CODEREF_DETAIL;
 
 
