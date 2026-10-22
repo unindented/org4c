@@ -1248,6 +1248,43 @@ Example blocks.
 </pre>
 ````````````````````````````````
 
+The common indentation is measured in columns (with a tab stop every 8
+columns). The rest of the indentation is kept as it is, including the tabs.
+A tab which spans the end of the common indentation is kept whole.
+
+```````````````````````````````` example
+#+begin_example
+→A
+→→B
+  →C
+    D
+#+end_example
+.
+<pre class="example">→A
+→→B
+→C
+D
+</pre>
+````````````````````````````````
+
+```````````````````````````````` example
+- item
+  #+begin_src sh
+  →if true; then
+  →→echo x
+  →fi
+  #+end_src
+.
+<ul>
+<li><p>item</p>
+<pre><code class="language-sh">if true; then
+→echo x
+fi
+</code></pre>
+</li>
+</ul>
+````````````````````````````````
+
 Quote and center blocks contain other elements.
 
 ```````````````````````````````` example

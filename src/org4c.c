@@ -4941,7 +4941,8 @@ org_process_verbatim_block_contents(ORG_CTX* ctx, ORG_TEXTTYPE text_type, const 
         const ORG_VERBATIMLINE* line = &lines[i];
         OFF beg = line->beg;
         OFF end = line->end;
-        OFF indent = (line->beg < line->end  &&  line->indent > min_indent) ? line->indent - min_indent : 0;
+        OFF indent = (line->beg < line->end) ? line->indent : 0;
+        OFF indent_beg = beg;
         OFF off;
         OFF label_beg, name_beg, name_end;
         int has_coderef = false;
@@ -4963,6 +4964,26 @@ org_process_verbatim_block_contents(ORG_CTX* ctx, ORG_TEXTTYPE text_type, const 
         }
 
         /* Output code indentation. */
+        if(strip_indent) {
+            /* The line is stored without its indentation, so (re-)include
+             * the part of it after the first min_indent columns verbatim. As
+             * Org does (see org-do-remove-indentation), a tab which spans the
+             * column min_indent is kept as it is, not split into spaces. */
+            unsigned col = 0;
+
+            while(indent_beg > 0  &&  ISBLANK(indent_beg-1))
+                indent_beg--;
+            while(indent_beg < beg  &&  col < min_indent) {
+                unsigned next_col = (CH(indent_beg) == _T('\t')) ? (col / TAB_WIDTH + 1) * TAB_WIDTH : col + 1;
+
+                if(next_col > min_indent)
+                    break;
+                col = next_col;
+                indent_beg++;
+            }
+            ORG_TEXT(text_type, STR(indent_beg), beg - indent_beg);
+            indent = 0;
+        }
         while(indent > indent_chunk_size) {
             ORG_TEXT(text_type, indent_chunk_str, indent_chunk_size);
             indent -= indent_chunk_size;
