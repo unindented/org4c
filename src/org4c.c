@@ -5291,6 +5291,7 @@ org_process_leaf_block(ORG_CTX* ctx, const ORG_BLOCK* block)
             org_build_attribute(ctx, STR(name_beg), name_end - name_beg, &det.latex_env.name, &attr_build[0]);
             detail = &det.latex_env;
             text_type = ORG_TEXT_LATEX;
+            strip_indent = true;
             break;
         }
 

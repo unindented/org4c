@@ -563,6 +563,24 @@ LaTeX environments.
 \end{equation}
 ````````````````````````````````
 
+Their common indentation (including the one of `\begin` and `\end` lines)
+is removed.
+
+```````````````````````````````` example
+- item
+  \begin{equation}
+  →x = 1
+  \end{equation}
+.
+<ul>
+<li><p>item</p>
+\begin{equation}
+→x = 1
+\end{equation}
+</li>
+</ul>
+````````````````````````````````
+
 ```````````````````````````````` example
 \begin{equation}
 no end
