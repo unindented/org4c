@@ -581,6 +581,36 @@ is removed.
 </ul>
 ````````````````````````````````
 
+Unlike blocks, an environment does not keep a list item from ending (by a
+line which is not indented more than the bullet, or by two blank lines);
+then it is not an environment. (Lines indented more, including other
+items, are a part of it.)
+
+```````````````````````````````` example
+- a
+  \begin{x}
+  y
+\end{x}
+- b
+  \begin{x}
+  - c
+  \end{x}
+.
+<ul>
+<li>a
+\begin{x}
+y</li>
+</ul>
+<p>\end{x}</p>
+<ul>
+<li><p>b</p>
+\begin{x}
+- c
+\end{x}
+</li>
+</ul>
+````````````````````````````````
+
 Unlike in `ox-html` (which outputs them raw), the HTML special characters
 are escaped, in the environments as well as in the fragments (see above).
 Otherwise e.g. `x<y` would start an HTML tag; the browser unescapes them

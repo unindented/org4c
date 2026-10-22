@@ -192,6 +192,14 @@ typedef struct ORG_RADIO_TARGET_tag ORG_RADIO_TARGET;
 typedef struct ORG_MACRO_COUNTER_tag ORG_MACRO_COUNTER;
 typedef struct ORG_CODE_BLOCK_tag ORG_CODE_BLOCK;
 typedef struct ORG_CODE_REF_tag ORG_CODE_REF;
+typedef struct ORG_SCAN_LINE_tag ORG_SCAN_LINE;
+
+/* A line scanned by org_is_cut_by_item_end(). */
+struct ORG_SCAN_LINE_tag {
+    OFF beg;
+    OFF next;           /* Beginning of the next line to scan (after the skipped block or drawer, if any). */
+    unsigned indent;    /* UINT_MAX for a blank line. */
+};
 
 /* Numbered source (or example) block. */
 struct ORG_CODE_BLOCK_tag {
@@ -465,6 +473,14 @@ struct ORG_CTX_tag {
     OFF verbatim_end;       /* When inside a verbatim-like block, beginning of the line which terminates it; zero otherwise. */
     int n_blank_lines;      /* Count of consecutive blank lines just seen. */
     int after_headline;     /* 1 if the previous line was a headline, 2 if it was its planning line. */
+
+    /* Consecutive lines scanned by org_is_cut_by_item_end() (with skipping
+     * the blocks and drawers before 'scan_limit'); so that each of them is
+     * analyzed only once even for many nested list items. */
+    ORG_SCAN_LINE* scan_lines;
+    int n_scan_lines;
+    int alloc_scan_lines;
+    OFF scan_limit;
 
     /* The caption (value of an affiliated "#+CAPTION:") of the element being
      * processed; and of the next element. (Zero if none.) */
@@ -4711,6 +4727,13 @@ struct ORG_CONTAINER_tag {
      * duplicate definition which is ignored). */
     int footnote_index;
 
+    /* List items: The lines up to item_scan_end do not end the item; the
+     * line at item_scan_end does if item_scan_is_cut. (See
+     * org_is_cut_by_item_end(); so that the lines are not scanned again for
+     * another LaTeX environment in the item.) */
+    OFF item_scan_end;
+    int item_scan_is_cut;
+
     /* For detection of ORG_BLOCK_TIGHT paragraphs in list items. */
     int p_block_off;        /* Offset (in ctx->block_bytes) of the first child if it is a paragraph; -1 otherwise. */
     unsigned n_children;
@@ -5693,6 +5716,8 @@ org_push_container(ORG_CTX* ctx, ORG_BLOCKTYPE type, unsigned data, const ORG_LI
     container->end_line = line->end_line;
     container->footnote_index = -1;
     container->p_block_off = -1;
+    container->item_scan_end = 0;
+    container->item_scan_is_cut = false;
     container->n_children = 0;
     container->n_list_children = 0;
 
@@ -5770,6 +5795,149 @@ org_leave_child_containers(ORG_CTX* ctx, int n_keep)
 /***********************
  ***  Line Analysis  ***
  ***********************/
+
+static OFF org_block_limit(ORG_CTX* ctx, OFF line_beg);
+
+/* Analyze the line at 'off' for org_is_cut_by_item_end(). As Org does (see
+ * org-list-struct), a block or a drawer (terminated before 'limit') is
+ * skipped as a whole. */
+static void
+org_scan_line(ORG_CTX* ctx, OFF off, OFF limit, ORG_SCAN_LINE* scan_line)
+{
+    OFF line_end = org_line_end(ctx, off);
+    OFF p = org_skip_blanks(ctx, off, line_end);
+    OFF name_beg, name_end, params_beg;
+    OFF skip_to = 0;
+
+    scan_line->beg = off;
+    if(p >= line_end) {
+        scan_line->indent = UINT_MAX;
+    } else {
+        scan_line->indent = org_indent_width(ctx, off, p);
+
+        if(org_is_prefix_i(ctx, p, line_end, _T("#+BEGIN_"))) {
+            org_analyze_block_begin_line(ctx, p, line_end, &name_beg, &name_end, &params_beg);
+            skip_to = org_find_block_end(ctx->block_ends, ctx->n_block_ends, off,
+                        STR(name_beg), name_end - name_beg, limit);
+        } else if(org_is_drawer_begin_line(ctx, p, line_end, &name_beg, &name_end)) {
+            skip_to = org_find_end_line(ctx->drawer_ends, ctx->n_drawer_ends, off, limit);
+        }
+        if(skip_to != 0)
+            line_end = org_line_end(ctx, skip_to);
+    }
+
+    scan_line->next = (line_end < ctx->size) ? org_skip_newline(ctx, line_end) : ctx->size;
+}
+
+/* Check whether the list item, in which a LaTeX environment would begin on
+ * the line 'line', ends before the line 'end_line' (which terminates the
+ * environment) does.
+ *
+ * Unlike the blocks and drawers, Org (see org-list-struct) does not skip
+ * the LaTeX environments when looking for the end of an item, so any line
+ * not indented more than the bullet, or two blank lines, end it (and then
+ * there is no environment). */
+static int
+org_is_cut_by_item_end(ORG_CTX* ctx, const ORG_LINE_ANALYSIS* line, OFF next_line_beg, OFF end_line)
+{
+    ORG_CONTAINER* item;
+    OFF limit;
+    OFF off = next_line_beg;
+    int n_blank_lines = 0;
+    int i, k;
+
+    /* Find the item the environment would begin in (if the line ends some
+     * items, see org_leave_lists_by_indent()). */
+    for(i = ctx->n_containers - 1; i >= 0; i--) {
+        const ORG_CONTAINER* container = &ctx->containers[i];
+
+        if(container->type == ORG_BLOCK_LI  ||  container->type == ORG_BLOCK_DD) {
+            if(line->indent > container->indent)
+                break;
+        } else if(container->type != ORG_BLOCK_UL  &&  container->type != ORG_BLOCK_OL  &&
+                  container->type != ORG_BLOCK_DL)
+        {
+            return false;
+        }
+    }
+    if(i < 0)
+        return false;
+    item = &ctx->containers[i];
+
+    /* All the lines of the item before this one have not ended it (or it
+     * would not be here), so continue the last scan (if it is still ahead). */
+    if(off < item->item_scan_end  ||  (off == item->item_scan_end  &&  item->item_scan_is_cut)) {
+        if(item->item_scan_is_cut  ||  item->item_scan_end > end_line)
+            return (item->item_scan_is_cut  &&  item->item_scan_end <= end_line);
+        off = item->item_scan_end;
+    }
+
+    /* Find 'off' among the lines scanned before (or start them over). */
+    limit = org_block_limit(ctx, off);
+    k = -1;
+    if(ctx->n_scan_lines > 0  &&  limit == ctx->scan_limit) {
+        int lo = 0;
+        int hi = ctx->n_scan_lines;
+
+        while(lo < hi) {
+            int pivot = lo + (hi - lo) / 2;
+            if(ctx->scan_lines[pivot].beg < off)
+                lo = pivot + 1;
+            else
+                hi = pivot;
+        }
+        if((lo < ctx->n_scan_lines  &&  ctx->scan_lines[lo].beg == off)  ||
+           (lo == ctx->n_scan_lines  &&  ctx->scan_lines[lo-1].next == off))
+            k = lo;
+    }
+    if(k < 0) {
+        k = 0;
+        ctx->n_scan_lines = 0;
+        ctx->scan_limit = limit;
+    }
+
+    while(off <= end_line) {
+        ORG_SCAN_LINE scan_line;
+
+        if(k < ctx->n_scan_lines) {
+            scan_line = ctx->scan_lines[k];
+        } else {
+            org_scan_line(ctx, off, limit, &scan_line);
+            if(ctx->n_scan_lines == k  &&  k < ctx->alloc_scan_lines) {
+                ctx->scan_lines[ctx->n_scan_lines++] = scan_line;
+            } else if(ctx->n_scan_lines == k) {
+                int new_alloc = (ctx->alloc_scan_lines > 0 ? ctx->alloc_scan_lines * 2 : 64);
+                ORG_SCAN_LINE* new_scan_lines = (ORG_SCAN_LINE*) realloc(ctx->scan_lines, new_alloc * sizeof(ORG_SCAN_LINE));
+
+                /* (Without the memory, the lines are just not remembered.) */
+                if(new_scan_lines != NULL) {
+                    ctx->scan_lines = new_scan_lines;
+                    ctx->alloc_scan_lines = new_alloc;
+                    ctx->scan_lines[ctx->n_scan_lines++] = scan_line;
+                }
+            }
+        }
+        k++;
+
+        if(scan_line.indent == UINT_MAX) {
+            n_blank_lines++;
+            if(n_blank_lines == 2)
+                break;
+        } else {
+            n_blank_lines = 0;
+            if(scan_line.indent <= item->indent)
+                break;
+        }
+
+        off = scan_line.next;
+        if(off >= ctx->size)
+            break;
+    }
+
+    item->item_scan_is_cut = (off <= end_line);
+    item->item_scan_end = off;
+    return item->item_scan_is_cut;
+}
 
 /* Blocks and drawers cannot span over a headline, nor over the end of the
  * enclosing block or drawer. */
@@ -5904,7 +6072,7 @@ org_analyze_line(ORG_CTX* ctx, OFF line_beg, OFF* p_next_line_beg, ORG_LINE_ANAL
                 if(name_end > name_beg  &&  name_end < end  &&  CH(name_end) == _T('}')) {
                     OFF end_line = org_find_block_end(ctx->latex_ends, ctx->n_latex_ends, line_beg,
                                 STR(name_beg), name_end - name_beg, org_block_limit(ctx, line_beg));
-                    if(end_line != 0) {
+                    if(end_line != 0  &&  !org_is_cut_by_item_end(ctx, line, *p_next_line_beg, end_line)) {
                         line->type = ORG_LINE_BLOCKBEGIN;
                         line->data = ORG_BLOCK_LATEX_ENVIRONMENT;
                         line->end_line = end_line;
@@ -6563,6 +6731,7 @@ org_parse(const ORG_CHAR* text, ORG_SIZE size, const ORG_PARSER* parser, void* u
     free(ctx.inlinetask_ends);
     free(ctx.block_ends);
     free(ctx.latex_ends);
+    free(ctx.scan_lines);
     free(ctx.todo_keywords);
     free(ctx.doc_keywords);
     free(ctx.macros);

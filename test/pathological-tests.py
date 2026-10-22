@@ -136,6 +136,12 @@ pathological = {
     "many unterminated latex environments":
             (("\\begin{x}\n" * 30000),
             re.compile(r"^<p>(\\begin\{x\}\n){29999}\\begin\{x\}</p>")),
+    "many latex environments cut by the end of a list item":
+            (("- a\n" + "  \\begin{x}\n" * 30000 + "\\end{x}\n"),
+            re.compile(r"^<ul>\n<li>a\n(\\begin\{x\}\n){29999}\\begin\{x\}</li>\n</ul>\n<p>\\end\{x\}</p>")),
+    "many latex environments in nested list items":
+            ("".join(map(lambda x: ("  " * x + "- b\n" + "  " * (x+1) + "\\begin{x}\n"), range(0,3000))) + "\\end{x}\n",
+            re.compile(r"^(<ul>\n<li>b\n\\begin\{x\}){3000}")),
     "many inline source block openers":
             (("src_a{" * 65000),
             re.compile(r"^<p>(src_a\{){65000}</p>")),
