@@ -1209,6 +1209,28 @@ See [[(first)]], [[(second)]] and [[(first)][this]].
 <p>See <a href="#coderef-first" class="coderef">first</a>, <a href="#coderef-second" class="coderef">10</a> and <a href="#coderef-first" class="coderef">this</a>.</p>
 ````````````````````````````````
 
+In source blocks, the switches have to precede the header arguments (and
+any other word). In example blocks, they may be anywhere.
+
+```````````````````````````````` example
+#+begin_src sh :exports code -n
+x
+#+end_src
+#+begin_src sh -x -n
+y
+#+end_src
+#+begin_example foo -n
+z
+#+end_example
+.
+<pre><code class="language-sh">x
+</code></pre>
+<pre><code class="language-sh">y
+</code></pre>
+<pre class="example"><span class="linenr">1: </span>z
+</pre>
+````````````````````````````````
+
 Lines starting with `*` or `#+` are escaped with a comma in the source
 blocks. The comma is removed.
 

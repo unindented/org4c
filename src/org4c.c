@@ -4748,8 +4748,12 @@ struct ORG_CODE_OPTIONS_tag {
     SZ label_post_size;
 };
 
+/* Parse the switches of a source (or example) block in [beg, end). In a
+ * source block, they have to precede anything else (i.e. the header
+ * arguments), so 'only_leading' stops at the first word which is not a
+ * switch. */
 static void
-org_parse_code_switches(ORG_CTX* ctx, OFF beg, OFF end, ORG_CODE_OPTIONS* opts)
+org_parse_code_switches(ORG_CTX* ctx, OFF beg, OFF end, int only_leading, ORG_CODE_OPTIONS* opts)
 {
     OFF off = beg;
 
@@ -4765,8 +4769,11 @@ org_parse_code_switches(ORG_CTX* ctx, OFF beg, OFF end, ORG_CODE_OPTIONS* opts)
         OFF word_end = org_skip_word(ctx, word_beg, end);
 
         off = word_end;
-        if(word_end - word_beg != 2  ||  !ISANYOF2(word_beg, _T('-'), _T('+')))
+        if(word_end - word_beg != 2  ||  !ISANYOF2(word_beg, _T('-'), _T('+'))) {
+            if(only_leading)
+                break;
             continue;
+        }
 
         if(CH(word_beg+1) == _T('n')) {
             OFF num_beg = org_skip_blanks(ctx, word_end, end);
@@ -4787,19 +4794,27 @@ org_parse_code_switches(ORG_CTX* ctx, OFF beg, OFF end, ORG_CODE_OPTIONS* opts)
             opts->retain_labels = false;
         } else if(CH(word_beg) == _T('-')  &&  CH(word_beg+1) == _T('i')) {
             opts->preserve_indent = true;
+        } else if(CH(word_beg) == _T('-')  &&  CH(word_beg+1) == _T('k')) {
+            /* Not supported (but still a switch). */
         } else if(CH(word_beg) == _T('-')  &&  CH(word_beg+1) == _T('l')) {
             /* -l "format" */
             OFF fmt_beg = org_skip_blanks(ctx, word_end, end);
             OFF fmt_end;
             OFF q;
 
-            if(fmt_beg >= end  ||  CH(fmt_beg) != _T('"'))
+            if(fmt_beg >= end  ||  CH(fmt_beg) != _T('"')) {
+                if(only_leading)
+                    break;
                 continue;
+            }
             fmt_end = fmt_beg + 1;
             while(fmt_end < end  &&  CH(fmt_end) != _T('"'))
                 fmt_end++;
-            if(fmt_end >= end)
+            if(fmt_end >= end) {
+                if(only_leading)
+                    break;
                 continue;
+            }
             off = fmt_end + 1;
 
             for(q = fmt_beg + 1; q + 1 < fmt_end; q++) {
@@ -4811,6 +4826,8 @@ org_parse_code_switches(ORG_CTX* ctx, OFF beg, OFF end, ORG_CODE_OPTIONS* opts)
                     break;
                 }
             }
+        } else if(only_leading) {
+            break;
         }
     }
 }
@@ -4854,7 +4871,7 @@ org_get_block_code_options(ORG_CTX* ctx, const ORG_BLOCK* block, ORG_CODE_OPTION
     org_analyze_block_begin_line(ctx, block->beg, block->end, &name_beg, &name_end, &params_beg);
     if(block->type == ORG_BLOCK_SRC)
         params_beg = org_skip_blanks(ctx, org_skip_word(ctx, params_beg, block->end), block->end);
-    org_parse_code_switches(ctx, params_beg, block->end, opts);
+    org_parse_code_switches(ctx, params_beg, block->end, (block->type == ORG_BLOCK_SRC), opts);
 }
 
 static int
