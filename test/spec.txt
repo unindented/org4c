@@ -1401,6 +1401,25 @@ HTML. Others are ignored.
 <b>raw</b>
 ````````````````````````````````
 
+Their common indentation is removed (as of the source blocks).
+
+```````````````````````````````` example
+- item
+  #+begin_export html
+    <div>
+  →<b>raw</b>
+    </div>
+  #+end_export
+.
+<ul>
+<li><p>item</p>
+<div>
+→<b>raw</b>
+</div>
+</li>
+</ul>
+````````````````````````````````
+
 ```````````````````````````````` example
 #+begin_export html
 <b>raw</b>

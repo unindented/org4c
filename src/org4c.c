@@ -5258,6 +5258,7 @@ org_process_leaf_block(ORG_CTX* ctx, const ORG_BLOCK* block)
                         org_skip_word(ctx, params_beg, block->end) - params_beg, &det.export_.backend, &attr_build[0]);
             detail = &det.export_;
             text_type = ORG_TEXT_EXPORT;
+            strip_indent = true;
             unescape = true;
             break;
         }
