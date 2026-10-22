@@ -1760,6 +1760,29 @@ baz
 </pre>
 ````````````````````````````````
 
+The indentation of the lines (before the `:`) is not a part of the area.
+The common indentation of the contents (after the `: `) is removed (as of
+the blocks).
+
+```````````````````````````````` example
+  : foo
+→:   bar
+- item
+  :  a
+  : →b
+.
+<pre class="example">foo
+  bar
+</pre>
+<ul>
+<li><p>item</p>
+<pre class="example">a
+→b
+</pre>
+</li>
+</ul>
+````````````````````````````````
+
 # Horizontal Rules
 
 A line consisting of at least five dashes.

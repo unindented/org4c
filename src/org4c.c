@@ -523,7 +523,7 @@ typedef struct ORG_VERBATIMLINE_tag ORG_VERBATIMLINE;
 struct ORG_VERBATIMLINE_tag {
     OFF beg;
     OFF end;
-    OFF indent;
+    OFF indent_beg;     /* Beginning of the indentation, which ends at 'beg'. */
 };
 
 
@@ -992,6 +992,23 @@ org_skip_blanks(ORG_CTX* ctx, OFF off, OFF end)
     while(off < end  &&  ISBLANK(off))
         off++;
     return off;
+}
+
+/* Column after the blank character 'ch' at the column 'col'. */
+#define ORG_NEXT_INDENT_COL(col, ch)                                        \
+        ((ch) == _T('\t') ? ((col) / TAB_WIDTH + 1) * TAB_WIDTH : (col) + 1)
+
+/* Width (in columns) of the blank characters [beg, end), from column zero. */
+static unsigned
+org_indent_width(ORG_CTX* ctx, OFF beg, OFF end)
+{
+    unsigned col = 0;
+
+    while(beg < end) {
+        col = ORG_NEXT_INDENT_COL(col, CH(beg));
+        beg++;
+    }
+    return col;
 }
 
 /* Skip blank characters (spaces and tabs) backward. */
@@ -4964,10 +4981,7 @@ org_process_verbatim_block_contents(ORG_CTX* ctx, ORG_TEXTTYPE text_type, const 
                                     SZ n_lines, int strip_indent, int unescape,
                                     const ORG_CODE_OPTIONS* code_opts, unsigned first_line)
 {
-    static const CHAR indent_chunk_str[] = _T("                ");
-    static const SZ indent_chunk_size = SIZEOF_ARRAY(indent_chunk_str) - 1;
-
-    OFF min_indent = (OFF) -1;
+    unsigned min_indent = UINT_MAX;
     SZ i;
     int ret = 0;
 
@@ -4975,19 +4989,19 @@ org_process_verbatim_block_contents(ORG_CTX* ctx, ORG_TEXTTYPE text_type, const 
      * (unless "-i" is used). */
     if(strip_indent  &&  !(code_opts != NULL  &&  code_opts->preserve_indent)) {
         for(i = 0; i < n_lines; i++) {
-            if(lines[i].beg < lines[i].end  &&  lines[i].indent < min_indent)
-                min_indent = lines[i].indent;
+            if(lines[i].beg < lines[i].end)
+                min_indent = MIN(min_indent, org_indent_width(ctx, lines[i].indent_beg, lines[i].beg));
         }
     }
-    if(min_indent == (OFF) -1)
+    if(min_indent == UINT_MAX)
         min_indent = 0;
 
     for(i = 0; i < n_lines; i++) {
         const ORG_VERBATIMLINE* line = &lines[i];
         OFF beg = line->beg;
         OFF end = line->end;
-        OFF indent = (line->beg < line->end) ? line->indent : 0;
-        OFF indent_beg = beg;
+        OFF indent_beg = line->indent_beg;
+        unsigned col;
         OFF off;
         OFF label_beg, name_beg, name_end;
         int has_coderef = false;
@@ -5008,33 +5022,19 @@ org_process_verbatim_block_contents(ORG_CTX* ctx, ORG_TEXTTYPE text_type, const 
             ORG_ENTER_SPAN(ORG_SPAN_CODEREF, &coderef_det);
         }
 
-        /* Output code indentation. */
-        if(strip_indent) {
-            /* The line is stored without its indentation, so (re-)include
-             * the part of it after the first min_indent columns verbatim. As
-             * Org does (see org-do-remove-indentation), a tab which spans the
-             * column min_indent is kept as it is, not split into spaces. */
-            unsigned col = 0;
+        /* Output the indentation, except its first min_indent columns. As
+         * Org does (see org-do-remove-indentation), the rest of it is kept
+         * verbatim; a tab which spans the column min_indent is kept whole. */
+        col = 0;
+        while(indent_beg < beg) {
+            unsigned next_col = ORG_NEXT_INDENT_COL(col, CH(indent_beg));
 
-            while(indent_beg > 0  &&  ISBLANK(indent_beg-1))
-                indent_beg--;
-            while(indent_beg < beg  &&  col < min_indent) {
-                unsigned next_col = (CH(indent_beg) == _T('\t')) ? (col / TAB_WIDTH + 1) * TAB_WIDTH : col + 1;
-
-                if(next_col > min_indent)
-                    break;
-                col = next_col;
-                indent_beg++;
-            }
-            ORG_TEXT(text_type, STR(indent_beg), beg - indent_beg);
-            indent = 0;
+            if(next_col > min_indent)
+                break;
+            col = next_col;
+            indent_beg++;
         }
-        while(indent > indent_chunk_size) {
-            ORG_TEXT(text_type, indent_chunk_str, indent_chunk_size);
-            indent -= indent_chunk_size;
-        }
-        if(indent > 0)
-            ORG_TEXT(text_type, indent_chunk_str, indent);
+        ORG_TEXT(text_type, STR(indent_beg), beg - indent_beg);
 
         /* Org escapes lines starting with '*' or "#+" by prepending a comma.
          * (Already escaped lines get just another comma.) So remove one. */
@@ -5295,6 +5295,7 @@ org_process_leaf_block(ORG_CTX* ctx, const ORG_BLOCK* block)
 
         case ORG_BLOCK_FIXED_WIDTH:
             text_type = ORG_TEXT_CODE;
+            strip_indent = true;
             break;
 
         case ORG_BLOCK_COMMENT:
@@ -5623,7 +5624,7 @@ org_start_new_block(ORG_CTX* ctx, ORG_BLOCKTYPE type, OFF beg, OFF end)
 }
 
 static int
-org_add_line_into_current_block(ORG_CTX* ctx, OFF beg, OFF end, unsigned indent)
+org_add_line_into_current_block(ORG_CTX* ctx, OFF beg, OFF end, OFF indent_beg)
 {
     ORG_ASSERT(ctx->current_block != NULL);
 
@@ -5636,7 +5637,7 @@ org_add_line_into_current_block(ORG_CTX* ctx, OFF beg, OFF end, unsigned indent)
 
         line->beg = beg;
         line->end = end;
-        line->indent = indent;
+        line->indent_beg = indent_beg;
     } else {
         ORG_LINE* line;
 
@@ -6091,7 +6092,7 @@ org_process_item_line(ORG_CTX* ctx, const ORG_LINE_ANALYSIS* line)
 
     if(contents_beg < line->end) {
         ORG_CHECK(org_start_new_block(ctx, ORG_BLOCK_P, contents_beg, line->end));
-        ORG_CHECK(org_add_line_into_current_block(ctx, contents_beg, line->end, line->indent));
+        ORG_CHECK(org_add_line_into_current_block(ctx, contents_beg, line->end, line->line_beg));
     }
 
 abort:
@@ -6152,7 +6153,14 @@ org_add_line_into_block_of_type(ORG_CTX* ctx, ORG_BLOCKTYPE type, const ORG_LINE
 
     if(ctx->current_block == NULL  ||  ctx->current_block->type != type)
         ORG_CHECK(org_start_new_block(ctx, type, line->beg, line->end));
-    ORG_CHECK(org_add_line_into_current_block(ctx, line->contents_beg, line->end, line->indent));
+    if(org_block_has_verbatim_lines(type)) {
+        /* In a fixed-width area (or a comment), the indentation of the line
+         * follows its ": " (or "# "). */
+        ORG_CHECK(org_add_line_into_current_block(ctx, org_skip_blanks(ctx, line->contents_beg, line->end),
+                    line->end, line->contents_beg));
+    } else {
+        ORG_CHECK(org_add_line_into_current_block(ctx, line->contents_beg, line->end, line->line_beg));
+    }
 
 abort:
     return ret;
@@ -6189,14 +6197,14 @@ org_process_line(ORG_CTX* ctx, const ORG_LINE_ANALYSIS* line)
 
     switch(line->type) {
         case ORG_LINE_VERBATIM:
-            ORG_CHECK(org_add_line_into_current_block(ctx, line->beg, line->end, line->indent));
+            ORG_CHECK(org_add_line_into_current_block(ctx, line->beg, line->end, line->line_beg));
             goto out;
 
         case ORG_LINE_BLOCKEND:
             if(ctx->verbatim_end != 0) {
                 /* LaTeX environment includes also its "\end{name}" line. */
                 if(ctx->current_block != NULL  &&  ctx->current_block->type == ORG_BLOCK_LATEX_ENVIRONMENT)
-                    ORG_CHECK(org_add_line_into_current_block(ctx, line->beg, line->end, line->indent));
+                    ORG_CHECK(org_add_line_into_current_block(ctx, line->beg, line->end, line->line_beg));
                 org_end_current_block(ctx);
                 ctx->verbatim_end = 0;
             } else {
@@ -6236,7 +6244,7 @@ org_process_line(ORG_CTX* ctx, const ORG_LINE_ANALYSIS* line)
 
                 /* LaTeX environment includes also its "\begin{name}" line. */
                 if(line->data == ORG_BLOCK_LATEX_ENVIRONMENT)
-                    ORG_CHECK(org_add_line_into_current_block(ctx, line->beg, line->end, line->indent));
+                    ORG_CHECK(org_add_line_into_current_block(ctx, line->beg, line->end, line->line_beg));
             } else {
                 ORG_CHECK(org_push_container(ctx, (ORG_BLOCKTYPE) line->data, 0, line));
             }
@@ -6253,7 +6261,7 @@ org_process_line(ORG_CTX* ctx, const ORG_LINE_ANALYSIS* line)
 
         case ORG_LINE_PLANNING:
             ORG_CHECK(org_start_new_block(ctx, ORG_BLOCK_PLANNING, line->beg, line->end));
-            ORG_CHECK(org_add_line_into_current_block(ctx, line->beg, line->end, line->indent));
+            ORG_CHECK(org_add_line_into_current_block(ctx, line->beg, line->end, line->line_beg));
             org_end_current_block(ctx);
             after_headline = 2;
             break;
@@ -6314,7 +6322,7 @@ org_process_line(ORG_CTX* ctx, const ORG_LINE_ANALYSIS* line)
             ORG_CHECK(org_push_container(ctx, ORG_BLOCK_FOOTNOTE_DEF, 0, line));
             if(line->contents_beg < line->end) {
                 ORG_CHECK(org_start_new_block(ctx, ORG_BLOCK_P, line->contents_beg, line->end));
-                ORG_CHECK(org_add_line_into_current_block(ctx, line->contents_beg, line->end, line->indent));
+                ORG_CHECK(org_add_line_into_current_block(ctx, line->contents_beg, line->end, line->line_beg));
             }
             break;
 
