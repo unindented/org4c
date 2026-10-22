@@ -4,6 +4,7 @@
 from subprocess import Popen, PIPE, TimeoutExpired
 import platform
 import os
+import shutil
 
 def pipe_through_prog(argv, text, timeout=None):
     p1 = Popen(argv, stdout=PIPE, stdin=PIPE, stderr=PIPE)
@@ -23,11 +24,12 @@ def pipe_through_prog(argv, text, timeout=None):
 
 class Prog:
     def __init__(self, cmdline="org2html", default_options=[]):
-        # The program path itself may contain spaces.
-        if os.path.exists(cmdline) or os.path.exists(cmdline + ".exe"):
-            self.cmdline = [cmdline]
-        else:
-            self.cmdline = cmdline.split()
+        # The program path itself may contain spaces, so resolve it as a
+        # whole before splitting it as a legacy command string.
+        program = shutil.which(cmdline)
+        if not program and os.name == 'nt':
+            program = shutil.which(cmdline + '.exe')
+        self.cmdline = [cmdline] if program else cmdline.split()
         if len(self.cmdline) <= 1:
             # cmdline provided no command line options. Use default ones.
             if isinstance(default_options, str):
