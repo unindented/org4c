@@ -1889,6 +1889,26 @@ the blocks).
 </ul>
 ````````````````````````````````
 
+The trailing whitespace of the lines is kept, too. A tab after the `:` does
+not make a fixed-width line.
+
+```````````````````````````````` example
+: a→
+:   
+: b
+.
+<pre class="example">a→
+  
+b
+</pre>
+````````````````````````````````
+
+```````````````````````````````` example
+:→
+.
+<p>:</p>
+````````````````````````````````
+
 # Horizontal Rules
 
 A line consisting of at least five dashes.

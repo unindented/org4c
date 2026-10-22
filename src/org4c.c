@@ -5021,20 +5021,19 @@ org_process_verbatim_block_contents(ORG_CTX* ctx, ORG_TEXTTYPE text_type, const 
                                     SZ n_lines, int strip_indent, int unescape,
                                     const ORG_CODE_OPTIONS* code_opts, unsigned first_line)
 {
-    unsigned min_indent = UINT_MAX;
+    unsigned min_indent = 0;
     SZ i;
     int ret = 0;
 
     /* Org removes the common indentation of all the (non-blank) lines
-     * (unless "-i" is used). */
+     * (unless "-i" is used). (If all of them are blank, they become empty.) */
     if(strip_indent  &&  !(code_opts != NULL  &&  code_opts->preserve_indent)) {
+        min_indent = UINT_MAX;
         for(i = 0; i < n_lines; i++) {
             if(lines[i].beg < lines[i].end)
                 min_indent = MIN(min_indent, org_indent_width(ctx, lines[i].indent_beg, lines[i].beg));
         }
     }
-    if(min_indent == UINT_MAX)
-        min_indent = 0;
 
     for(i = 0; i < n_lines; i++) {
         const ORG_VERBATIMLINE* line = &lines[i];
@@ -6128,9 +6127,12 @@ org_analyze_line(ORG_CTX* ctx, OFF line_beg, OFF* p_next_line_beg, ORG_LINE_ANAL
         {
             OFF name_beg, name_end;
 
-            if(off + 1 == end  ||  CH(off+1) == _T(' ')) {
+            if(off + 1 == line_end  ||  CH(off+1) == _T(' ')) {
+                /* (Unlike in other lines, the trailing whitespace is a part
+                 * of the contents.) */
                 line->type = ORG_LINE_FIXEDWIDTH;
-                line->contents_beg = (off + 1 < end) ? off + 2 : end;
+                line->end = line_end;
+                line->contents_beg = (off + 1 < line_end) ? off + 2 : line_end;
                 return;
             }
 
