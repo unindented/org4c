@@ -319,6 +319,21 @@ Body.
 <p>Body.</p>
 ````````````````````````````````
 
+A property drawer also may start the document, after blank lines and a
+comment (but not after any other element, e.g. a keyword).
+
+```````````````````````````````` example
+# A comment
+
+:PROPERTIES:
+:ID: 1234
+:END:
+#+TITLE: Notes
+Body.
+.
+<p>Body.</p>
+````````````````````````````````
+
 Elsewhere, it is just a normal text (or a normal drawer).
 
 ```````````````````````````````` example
@@ -328,6 +343,15 @@ SCHEDULED: <2024-01-01 Mon>
 :END:
 .
 <p>SCHEDULED: <span class="timestamp-wrapper"><span class="timestamp">&lt;2024-01-01 Mon&gt;</span></span></p>
+<p>:ID: 1234</p>
+````````````````````````````````
+
+```````````````````````````````` example
+#+TITLE: Notes
+:PROPERTIES:
+:ID: 1234
+:END:
+.
 <p>:ID: 1234</p>
 ````````````````````````````````
 

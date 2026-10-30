@@ -473,6 +473,8 @@ struct ORG_CTX_tag {
     OFF verbatim_end;       /* When inside a verbatim-like block, beginning of the line which terminates it; zero otherwise. */
     int n_blank_lines;      /* Count of consecutive blank lines just seen. */
     int after_headline;     /* 1 if the previous line was a headline, 2 if it was its planning line. */
+    int at_doc_start;       /* 1 before the first element, 2 just after the first one if it is a comment,
+                             * 3 after it and some blank lines; zero otherwise. */
 
     /* Consecutive lines scanned by org_is_cut_by_item_end() (with skipping
      * the blocks and drawers before 'scan_limit'); so that each of them is
@@ -6188,7 +6190,10 @@ org_analyze_line(ORG_CTX* ctx, OFF line_beg, OFF* p_next_line_beg, ORG_LINE_ANAL
 
                 if(end_line != 0) {
                     line->end_line = end_line;
-                    if(ctx->after_headline > 0  &&  name_end - name_beg == 10  &&
+                    /* (A property drawer also may be the first element of
+                     * the document, or the second one after a comment.) */
+                    if((ctx->after_headline > 0  ||  ctx->at_doc_start > 0)  &&
+                       name_end - name_beg == 10  &&
                        org_ascii_case_eq(STR(name_beg), _T("PROPERTIES"), 10))
                         line->type = ORG_LINE_PROPERTYDRAWERBEGIN;
                     else
@@ -6411,6 +6416,8 @@ org_process_line(ORG_CTX* ctx, const ORG_LINE_ANALYSIS* line)
         org_end_current_block(ctx);
         ctx->n_blank_lines++;
         ctx->after_headline = 0;
+        if(ctx->at_doc_start == 2)
+            ctx->at_doc_start = 3;
         if(ctx->n_blank_lines == 2) {
             /* Two blank lines end all the lists, as well as any footnote
              * definition. */
@@ -6422,6 +6429,12 @@ org_process_line(ORG_CTX* ctx, const ORG_LINE_ANALYSIS* line)
     }
 
     ctx->n_blank_lines = 0;
+
+    /* (The consecutive comment lines form a single comment.) */
+    if(line->type == ORG_LINE_COMMENT  &&  (ctx->at_doc_start == 1  ||  ctx->at_doc_start == 2))
+        ctx->at_doc_start = 2;
+    else
+        ctx->at_doc_start = 0;
 
     /* Affiliated keywords belong to the following element (if there is one,
      * without any blank line between). */
@@ -6766,6 +6779,7 @@ org_parse(const ORG_CHAR* text, ORG_SIZE size, const ORG_PARSER* parser, void* u
     org_check_doc_chars(&ctx);
     org_build_mark_char_map(&ctx);
     ctx.macro_output_budget = MACRO_MAX_OUTPUT(size);
+    ctx.at_doc_start = 1;
 
     /* All the work. */
     ret = org_process_doc(&ctx);
