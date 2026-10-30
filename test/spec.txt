@@ -812,6 +812,15 @@ HTML files.
 <p><a href="notes.txt">notes</a> <a href="other.html">other</a> <a href="other.html">heading</a> <a href="./rel.html">./rel.html</a></p>
 ````````````````````````````````
 
+Of the search options of a link to a file, only a custom ID is kept (as the
+fragment of the URL). The others refer to the contents of the other file.
+
+```````````````````````````````` example
+[[file:other.org::#intro][a]] [[file:notes.txt::#intro][b]] [[file:other.org::#intro]] [[file:other.org::#][c]]
+.
+<p><a href="other.html#intro">a</a> <a href="notes.txt#intro">b</a> <a href="other.html#intro">other.html#intro</a> <a href="other.html#">c</a></p>
+````````````````````````````````
+
 The text of a link to a file without a description is the path it points to,
 not the raw link (as in `ox-html`).
 

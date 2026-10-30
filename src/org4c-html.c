@@ -887,7 +887,9 @@ render_open_td_block(ORG_HTML* r, const ORG_CHAR* cell_type, const ORG_BLOCK_TD_
 }
 
 /* Output the path of a "file" link. Links to Org files are made to point to
- * the respective exported HTML files. */
+ * the respective exported HTML files. Of the search options, only a custom ID
+ * ("file:foo.org::#id") is kept, as the fragment "#id". (The others refer to
+ * the contents of the other file, which we do not see.) */
 static void
 render_file_link_path(ORG_HTML* r, const ORG_ATTRIBUTE* path,
                       void (*fn_append)(ORG_HTML*, const ORG_CHAR*, ORG_SIZE))
@@ -895,7 +897,7 @@ render_file_link_path(ORG_HTML* r, const ORG_ATTRIBUTE* path,
     ORG_SIZE size = path->size;
     ORG_SIZE i;
 
-    /* Strip search option ("file:foo.org::*Heading"). */
+    /* Find the search option (e.g. "file:foo.org::*Heading"). */
     for(i = 0; i + 1 < size; i++) {
         if(path->text[i] == ':'  &&  path->text[i+1] == ':') {
             size = i;
@@ -909,6 +911,9 @@ render_file_link_path(ORG_HTML* r, const ORG_ATTRIBUTE* path,
     } else {
         render_attribute_part(r, path, 0, size, fn_append);
     }
+
+    if(size + 2 < path->size  &&  path->text[size + 2] == '#')
+        render_attribute_part(r, path, size + 2, path->size, fn_append);
 }
 
 static void
