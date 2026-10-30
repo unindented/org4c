@@ -577,6 +577,8 @@ typedef struct ORG_SPAN_CODEREF_DETAIL {
 #define ORG_FLAG_SKIPCOMMENTED              0x20     /* Do not report subtrees of headlines with the COMMENT keyword at all. */
 #define ORG_FLAG_SKIPNOEXPORT               0x40     /* Do not report subtrees of headlines tagged "noexport" at all. */
 #define ORG_FLAG_INLINETASKS                0x80     /* Enable inline tasks (headlines of level 15 or deeper; see Emacs `org-inlinetask'). */
+#define ORG_FLAG_SKIPARCHIVED               0x100    /* Do not report subtrees of headlines tagged "ARCHIVE" at all. */
+#define ORG_FLAG_SKIPARCHIVEDCONTENTS       0x200    /* Of subtrees of headlines tagged "ARCHIVE", report only the headlines (as Org's "arch:headline"). */
 
 /* Parser structure.
  */

@@ -16,7 +16,9 @@ Convert the Org document in \fIFILE\fR (or in the standard input if
 \fIFILE\fR is missing or \fB\-\fR) to HTML.
 .PP
 Commented subtrees (headlines with the \fBCOMMENT\fR keyword) and the
-subtrees tagged \fB:noexport:\fR are skipped.
+subtrees tagged \fB:noexport:\fR are skipped, and of the subtrees tagged
+\fB:ARCHIVE:\fR only the headlines are output (unless
+\fB\-\-farchived\-trees\fR is used).
 The in-buffer \fB#+OPTIONS:\fR of the document are honored (unless
 \fB\-\-fignore\-options\fR is used) and they override the respective options.
 .
@@ -66,6 +68,9 @@ Do not recognize LaTeX fragments and environments
 Do not recognize plain links (e.g. https://example.com)
 .
 .SS HTML generator options:
+.TP
+.B \-\-farchived\-trees
+Output the subtrees tagged \fB:ARCHIVE:\fR in full, as Org's \fBarch:t\fR
 .TP
 .B \-\-fhard\-soft\-breaks
 Render all soft line breaks as hard ones

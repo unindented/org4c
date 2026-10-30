@@ -217,6 +217,66 @@ B[fn:2]
 </div>
 ````````````````````````````````
 
+Of the subtrees tagged `ARCHIVE` (case-sensitive), only the headlines are
+exported, as with Org's default `arch:headline` (`ORG_FLAG_SKIPARCHIVEDCONTENTS`,
+which `org_html()` uses unless `ORG_HTML_FLAG_ARCHIVED_TREES` is set). So the
+footnotes referenced only from their contents are not listed either.
+
+```````````````````````````````` example
+* Old :ARCHIVE:
+A[fn:1]
+** Older
+* Lower case :archive:
+B
+* Visible
+** Old too :ARCHIVE:
+C
+
+[fn:1] One.
+.
+<h1>Old&#xa0;&#xa0;&#xa0;<span class="tag"><span class="ARCHIVE">ARCHIVE</span></span></h1>
+<h1>Lower case&#xa0;&#xa0;&#xa0;<span class="tag"><span class="archive">archive</span></span></h1>
+<p>B</p>
+<h1>Visible</h1>
+<h2>Old too&#xa0;&#xa0;&#xa0;<span class="tag"><span class="ARCHIVE">ARCHIVE</span></span></h2>
+````````````````````````````````
+
+With `#+OPTIONS: arch:nil` (`ORG_FLAG_SKIPARCHIVED`), the archived subtrees
+are not exported at all.
+
+```````````````````````````````` example
+#+OPTIONS: arch:nil
+* Old :ARCHIVE:
+A
+* Visible
+.
+<h1>Visible</h1>
+````````````````````````````````
+
+With `#+OPTIONS: arch:t` (or `ORG_HTML_FLAG_ARCHIVED_TREES`), they are
+exported in full.
+
+```````````````````````````````` example
+#+OPTIONS: arch:t
+* Old :ARCHIVE:
+A
+** Older
+.
+<h1>Old&#xa0;&#xa0;&#xa0;<span class="tag"><span class="ARCHIVE">ARCHIVE</span></span></h1>
+<p>A</p>
+<h2>Older</h2>
+````````````````````````````````
+
+```````````````````````````````` example
+* Old :ARCHIVE:
+A
+.
+<h1>Old&#xa0;&#xa0;&#xa0;<span class="tag"><span class="ARCHIVE">ARCHIVE</span></span></h1>
+<p>A</p>
+.
+--farchived-trees
+````````````````````````````````
+
 With `ORG_FLAG_INLINETASKS`, headlines of level 15 or deeper are inline
 tasks, optionally terminated with a line `*************** END`.
 

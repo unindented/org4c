@@ -1730,6 +1730,17 @@ apply_option(const ORG_CHAR* opt, ORG_SIZE size, unsigned* p_parser_flags, unsig
     value_size = size - key_size - 1;
     is_nil = (value_size == 3  &&  memcmp(value, "nil", 3) == 0);
 
+    /* Archived subtrees: "headline", "nil" or "t" (any other value). */
+    if(key_size == 4  &&  memcmp(opt, "arch", 4) == 0) {
+        *p_parser_flags &= ~ORG_FLAG_SKIPARCHIVED;
+        *p_renderer_flags &= ~ORG_HTML_FLAG_ARCHIVED_TREES;
+        if(is_nil)
+            *p_parser_flags |= ORG_FLAG_SKIPARCHIVED;
+        else if(!(value_size == 8  &&  memcmp(value, "headline", 8) == 0))
+            *p_renderer_flags |= ORG_HTML_FLAG_ARCHIVED_TREES;
+        return;
+    }
+
     /* Sub/superscripts: "t", "nil" or "{}". */
     if(key_size == 1  &&  opt[0] == '^') {
         *p_parser_flags &= ~(ORG_FLAG_SUBSUPERSCRIPTS | ORG_FLAG_SUBSUPERSCRIPTS_BRACED);
@@ -1844,8 +1855,11 @@ org_html(const ORG_CHAR* input, ORG_SIZE input_size,
         apply_in_buffer_options(input, input_size, &parser_flags, &renderer_flags);
     /* The renderer never outputs the commented subtrees and the ones tagged
      * "noexport", so the parser does not need to report them. (Otherwise, it
-     * would count also the footnotes referenced only from them.) */
+     * would count also the footnotes referenced only from them.) The same
+     * holds for the contents of the archived subtrees, by default. */
     parser.flags = parser_flags | ORG_FLAG_SKIPCOMMENTED | ORG_FLAG_SKIPNOEXPORT;
+    if(!(renderer_flags & ORG_HTML_FLAG_ARCHIVED_TREES))
+        parser.flags |= ORG_FLAG_SKIPARCHIVEDCONTENTS;
 
     memset(&render, 0, sizeof(render));
     render.process_output = process_output;

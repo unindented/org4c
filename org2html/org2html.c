@@ -384,6 +384,7 @@ static const CMDLINE_OPTION cmdline_options[] = {
     {  0,  "html-title",                    '1', CMDLINE_OPTFLAG_REQUIREDARG },
     {  0,  "html-css",                      '2', CMDLINE_OPTFLAG_REQUIREDARG },
 
+    {  0,  "farchived-trees",               'A', 0 },
     {  0,  "fhard-soft-breaks",             'B', 0 },
     {  0,  "fignore-options",               'O', 0 },
     {  0,  "finlinetasks",                  'i', 0 },
@@ -414,7 +415,8 @@ usage(void)
     printf(
         "Usage: org2html [OPTION]... [FILE]\n"
         "Convert input FILE (or standard input) in Org format to HTML.\n"
-        "Commented subtrees and the ones tagged :noexport: are skipped.\n"
+        "Commented subtrees and the ones tagged :noexport: are skipped, and only\n"
+        "the headlines of the ones tagged :ARCHIVE: are output.\n"
         "\n"
         "General options:\n"
         "  -o, --output=FILE    Output file (default is standard output)\n"
@@ -439,6 +441,8 @@ usage(void)
         "                       Do not recognize plain links (e.g. https://example.com)\n"
         "\n"
         "HTML generator options:\n"
+        "      --farchived-trees\n"
+        "                       Output the subtrees tagged :ARCHIVE: in full\n"
         "      --fhard-soft-breaks\n"
         "                       Render all soft line breaks as hard ones\n"
         "      --fignore-options\n"
@@ -496,6 +500,7 @@ cmdline_callback(int opt, char const* value, void* data)
         case '1':   html_title = value; break;
         case '2':   css_path = value; break;
 
+        case 'A':   renderer_flags |= ORG_HTML_FLAG_ARCHIVED_TREES; break;
         case 'B':   renderer_flags |= ORG_HTML_FLAG_HARD_SOFT_BREAKS; break;
         case 'O':   renderer_flags &= ~ORG_HTML_FLAG_IN_BUFFER_OPTIONS; break;
         case 'i':   parser_flags |= ORG_FLAG_INLINETASKS; break;

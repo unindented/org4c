@@ -52,8 +52,8 @@
 /* If set, org_html() honors the in-buffer "#+OPTIONS:" of the document, as
  * far as they are supported: "^:" (sub/superscripts), "tex:", "-:" (special
  * strings), "e:" (entities), "todo:", "pri:", "tags:", "f:" (footnotes),
- * "d:" (drawers) and "\n:" (line breaks). They override the respective
- * flags.
+ * "d:" (drawers), "\n:" (line breaks) and "arch:" (archived subtrees). They
+ * override the respective flags.
  *
  * Note the lines "#+OPTIONS:" are looked for without parsing the document,
  * so they are honored even inside a block (e.g. #+BEGIN_SRC ... #+END_SRC),
@@ -64,6 +64,10 @@
  * <hN+1>, still capped at <h6>), as ox-html does, reserving <h1> for the
  * document title. */
 #define ORG_HTML_FLAG_TOPLEVEL_H2               0x1000
+
+/* If set, the subtrees tagged "ARCHIVE" are output in full (as Org's
+ * "arch:t"). By default, only their headlines are output, as ox-html does. */
+#define ORG_HTML_FLAG_ARCHIVED_TREES            0x2000
 
 
 /* Render Org document into HTML.
@@ -78,7 +82,9 @@
  * Param userdata is just propagated back to process_output() callback.
  * Param parser_flags are flags from org4c.h propagated to org_parse().
  * (ORG_FLAG_SKIPCOMMENTED and ORG_FLAG_SKIPNOEXPORT are always added, as the
- * commented subtrees and the ones tagged "noexport" are never rendered.)
+ * commented subtrees and the ones tagged "noexport" are never rendered; and
+ * so is ORG_FLAG_SKIPARCHIVEDCONTENTS, unless ORG_HTML_FLAG_ARCHIVED_TREES is
+ * set.)
  * Param renderer_flags is bitmask of ORG_HTML_FLAG_xxxx.
  *
  * Returns -1 on error (if org_parse() fails.)

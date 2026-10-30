@@ -5403,6 +5403,27 @@ org_has_tag(ORG_CTX* ctx, OFF beg, OFF end, const CHAR* tag)
     return false;
 }
 
+/* Find the record closing the section opened by the record at byte_off. */
+static int
+org_find_section_closer(ORG_CTX* ctx, int byte_off, int byte_end)
+{
+    int depth = 0;
+
+    while(byte_off < byte_end) {
+        ORG_BLOCK* block = (ORG_BLOCK*)((char*)ctx->block_bytes + byte_off);
+
+        if(block->type == ORG_BLOCK_SECTION  &&  (block->flags & ORG_BLOCK_CONTAINER_OPENER))
+            depth++;
+        else if(block->type == ORG_BLOCK_SECTION  &&  (block->flags & ORG_BLOCK_CONTAINER_CLOSER))
+            depth--;
+        if(depth == 0)
+            break;
+        byte_off += org_block_record_size(block);
+    }
+
+    return byte_off;
+}
+
 /* Process the block records in ctx->block_bytes within [byte_beg, byte_end). */
 static int
 org_process_blocks(ORG_CTX* ctx, int byte_beg, int byte_end)
@@ -5424,6 +5445,7 @@ org_process_blocks(ORG_CTX* ctx, int byte_beg, int byte_end)
         ORG_ATTRIBUTE_BUILD attr_build[2];
         void* detail = NULL;
         ORG_ITEM_INFO item_info;
+        int skip_contents = false;
 
         memset(&det, 0, sizeof(det));
 
@@ -5469,26 +5491,28 @@ org_process_blocks(ORG_CTX* ctx, int byte_beg, int byte_end)
             {
                 ORG_HEADLINE_INFO info;
 
+                int is_archived;
+
                 org_analyze_headline(ctx, block->beg, block->end, &info);
+                is_archived = org_has_tag(ctx, info.tags_beg, info.tags_end, _T("ARCHIVE"));
 
                 /* Skip the whole subtree if requested. */
                 if((block->flags & ORG_BLOCK_CONTAINER_OPENER)  &&
                    (((ctx->parser.flags & ORG_FLAG_SKIPCOMMENTED)  &&  info.is_commented)  ||
                     ((ctx->parser.flags & ORG_FLAG_SKIPNOEXPORT)  &&
-                     org_has_tag(ctx, info.tags_beg, info.tags_end, _T("noexport")))))
+                     org_has_tag(ctx, info.tags_beg, info.tags_end, _T("noexport")))  ||
+                    ((ctx->parser.flags & ORG_FLAG_SKIPARCHIVED)  &&  is_archived)))
                 {
-                    int depth = 0;
-
-                    do {
-                        block = (ORG_BLOCK*)((char*)ctx->block_bytes + byte_off);
-                        if(block->type == ORG_BLOCK_SECTION  &&  (block->flags & ORG_BLOCK_CONTAINER_OPENER))
-                            depth++;
-                        else if(block->type == ORG_BLOCK_SECTION  &&  (block->flags & ORG_BLOCK_CONTAINER_CLOSER))
-                            depth--;
-                        byte_off += org_block_record_size(block);
-                    } while(byte_off < byte_end  &&  depth > 0);
+                    byte_off = org_find_section_closer(ctx, byte_off, byte_end);
+                    if(byte_off < byte_end)
+                        byte_off += org_block_record_size((ORG_BLOCK*)((char*)ctx->block_bytes + byte_off));
                     continue;
                 }
+
+                /* Or all of it but the headline. */
+                if((block->flags & ORG_BLOCK_CONTAINER_OPENER)  &&
+                   (ctx->parser.flags & ORG_FLAG_SKIPARCHIVEDCONTENTS)  &&  is_archived)
+                    skip_contents = true;
 
                 det.section.level = info.level;
                 det.section.is_commented = info.is_commented;
@@ -5577,6 +5601,18 @@ org_process_blocks(ORG_CTX* ctx, int byte_beg, int byte_end)
 
             ORG_ENTER_BLOCK(block->type, detail);
             ORG_CHECK(org_process_caption(ctx));
+        }
+
+        if(skip_contents) {
+            /* The headline is the first record of the section. */
+            int closer_off = org_find_section_closer(ctx, byte_off, byte_end);
+
+            byte_off += sizeof(ORG_BLOCK);
+            block = (ORG_BLOCK*)((char*)ctx->block_bytes + byte_off);
+            ORG_ASSERT(block->type == ORG_BLOCK_HEADLINE);
+            ORG_CHECK(org_process_leaf_block(ctx, block));
+            byte_off = closer_off;
+            continue;
         }
 
         byte_off += sizeof(ORG_BLOCK);
