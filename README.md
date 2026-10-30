@@ -123,6 +123,7 @@ Not supported (yet):
 
 - Macros with `(eval ...)` templates (they are kept verbatim), and the built-in macros `time`, `property`, `input-file`, `modification-time` (they expand to nothing).
 - Affiliated keywords other than `#+CAPTION:`, `#+NAME:` and `#+ATTR_HTML:` are only reported (e.g. `#+ATTR_LATEX:`). The `#+ATTR_HTML:` option `:textarea` of example blocks is output as an ordinary attribute.
+- `#+SETUPFILE:` and `#+INCLUDE:` are ignored, as ORG4C never reads any other files. So the settings of a setup file (e.g. `#+TODO:`, `#+MACRO:` or `#+OPTIONS:`) do not apply, and the contents of an included file is missing; to get them, insert the files into the document before parsing it.
 - Other in-buffer settings. Supported are only `#+TODO:`, `#+SEQ_TODO:`, `#+TYP_TODO:`, `#+MACRO:`, the keywords used by the macros (e.g. `#+TITLE:`) and some of `#+OPTIONS:`. Note that, unlike Emacs, ORG4C honors `#+OPTIONS:` even inside a block (e.g. `#+BEGIN_SRC`); and so does `org2html` with `#+TITLE:`.
 
 ## Differences from Emacs `ox-html`
