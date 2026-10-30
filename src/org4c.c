@@ -5519,6 +5519,8 @@ org_process_blocks(ORG_CTX* ctx, int byte_beg, int byte_end)
                 det.section.level = info.level;
                 det.section.is_commented = info.is_commented;
                 org_build_attribute(ctx, STR(info.tags_beg), info.tags_end - info.tags_beg, &det.section.tags, &attr_build[0]);
+                det.section.is_footnote_section = (info.title_end - info.title_beg == 9  &&
+                            org_ascii_eq(STR(info.title_beg), _T("Footnotes"), 9));
                 detail = &det.section;
                 break;
             }

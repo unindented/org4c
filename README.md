@@ -138,7 +138,7 @@ The HTML renderer does not try to reproduce `ox-html` output byte-by-byte:
 - Internal links (to headlines, custom IDs, ...) are not resolved; they just point to `#target` (and targets `<<target>>` are rendered as `<a id="target"></a>`, so the links to targets work).
 - The name (`#+NAME:`) of an element is its `id` (as with `org-html-prefer-user-labels`); unlike `ox-html`, also for paragraphs, lists, verse and center blocks and fixed-width areas, so that the links to them work. Elements without a name get no generated `id`.
 - Of several `#+ATTR_HTML:` attributes with the same key, the last one is used (`ox-html` outputs all of them). At most 16 attributes per element are used.
-- Footnote numbering and the footnote section follow `ox-html`. (`org_html()` always uses `ORG_FLAG_SKIPCOMMENTED` and `ORG_FLAG_SKIPNOEXPORT`, and also `ORG_FLAG_SKIPARCHIVEDCONTENTS` unless `ORG_HTML_FLAG_ARCHIVED_TREES` is set, so that footnotes referenced only from non-exported subtrees are not listed.)
+- Footnote numbering and the footnote section follow `ox-html`, and so the subtree of a headline `Footnotes` (`org-footnote-section`) is not output. (`org_html()` always uses `ORG_FLAG_SKIPCOMMENTED` and `ORG_FLAG_SKIPNOEXPORT`, and also `ORG_FLAG_SKIPARCHIVEDCONTENTS` unless `ORG_HTML_FLAG_ARCHIVED_TREES` is set, so that footnotes referenced only from non-exported subtrees are not listed.)
 
 ## Input/Output Encoding
 

@@ -445,6 +445,9 @@ typedef struct ORG_BLOCK_SECTION_DETAIL {
     unsigned level;             /* Headline level (count of leading stars; 1 - N) */
     int is_commented;           /* Non-zero if the headline starts with the COMMENT keyword. */
     ORG_ATTRIBUTE tags;         /* Tags of the headline as written in the source, e.g. "work:urgent" (without the outer colons). */
+    int is_footnote_section;    /* Non-zero if the title (without the TODO keyword, priority, COMMENT and tags)
+                                 * is exactly "Footnotes" (the default org-footnote-section, where Org files
+                                 * the footnote definitions). */
 } ORG_BLOCK_SECTION_DETAIL;
 
 /* Detailed info for ORG_BLOCK_EXAMPLE. */

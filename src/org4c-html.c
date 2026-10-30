@@ -1319,6 +1319,12 @@ is_suppressed_block(ORG_HTML* r, ORG_BLOCKTYPE type, void* detail)
         case ORG_BLOCK_FOOTNOTE_DEF_SECTION:
             return (r->flags & ORG_HTML_FLAG_NO_FOOTNOTES);
 
+        case ORG_BLOCK_SECTION:
+            /* Like ox-html, do not export the footnote section (the footnote
+             * definitions in it are output in ORG_BLOCK_FOOTNOTE_DEF_SECTION
+             * anyway). */
+            return ((const ORG_BLOCK_SECTION_DETAIL*) detail)->is_footnote_section;
+
         case ORG_BLOCK_COMMENT:
         case ORG_BLOCK_PROPERTY_DRAWER:
         case ORG_BLOCK_PLANNING:

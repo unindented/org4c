@@ -168,6 +168,33 @@ A[fn:1]
 </div>
 ````````````````````````````````
 
+The subtree of a headline titled `Footnotes` (Org's default
+`org-footnote-section`, where it files the definitions) is not output, as
+with `ox-html`. The definitions in it are rendered at the end as usual.
+
+```````````````````````````````` example
+* Notes
+Foo[fn:1].
+* Footnotes
+[fn:1] The definition.
+** Not output
+Text.
+* More
+Bar.
+.
+<h1>Notes</h1>
+<p>Foo<sup><a id="fnr.1" class="footref" href="#fn.1">1</a></sup>.</p>
+<h1>More</h1>
+<p>Bar.</p>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes:</h2>
+<div id="text-footnotes">
+<div class="footdef"><sup><a id="fn.1" class="footnum" href="#fnr.1">1</a></sup> <div class="footpara"><p>The definition.</p>
+</div></div>
+</div>
+</div>
+````````````````````````````````
+
 The definition has to start at the column 0.
 
 ```````````````````````````````` example
