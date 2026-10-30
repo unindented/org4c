@@ -63,7 +63,8 @@ struct ORG_HTML_tag {
     void (*process_output)(const ORG_CHAR*, ORG_SIZE, void*);
     void* userdata;
     unsigned flags;
-    int image_nesting_level;
+    int raw_link_nesting_level;     /* Inside a link whose raw contents is not rendered. */
+    int raw_link_is_image;
     int suppress_level;         /* Non-zero inside contents which is not exported. */
     int verse_level;
     int at_verse_line_start;
@@ -888,7 +889,8 @@ render_open_td_block(ORG_HTML* r, const ORG_CHAR* cell_type, const ORG_BLOCK_TD_
 /* Output the path of a "file" link. Links to Org files are made to point to
  * the respective exported HTML files. */
 static void
-render_file_link_path(ORG_HTML* r, const ORG_ATTRIBUTE* path)
+render_file_link_path(ORG_HTML* r, const ORG_ATTRIBUTE* path,
+                      void (*fn_append)(ORG_HTML*, const ORG_CHAR*, ORG_SIZE))
 {
     ORG_SIZE size = path->size;
     ORG_SIZE i;
@@ -902,10 +904,10 @@ render_file_link_path(ORG_HTML* r, const ORG_ATTRIBUTE* path)
     }
 
     if(size > 4  &&  memcmp(path->text + size - 4, ".org", 4) == 0) {
-        render_attribute_part(r, path, 0, size - 4, render_url_escaped);
+        render_attribute_part(r, path, 0, size - 4, fn_append);
         RENDER_VERBATIM(r, ".html");
     } else {
-        render_attribute_part(r, path, 0, size, render_url_escaped);
+        render_attribute_part(r, path, 0, size, fn_append);
     }
 }
 
@@ -913,7 +915,7 @@ static void
 render_link_href(ORG_HTML* r, const ORG_SPAN_LINK_DETAIL* det)
 {
     if(attribute_eq(&det->type, "file")) {
-        render_file_link_path(r, &det->path);
+        render_file_link_path(r, &det->path, render_url_escaped);
     } else if(attribute_eq(&det->type, "coderef")) {
         RENDER_VERBATIM(r, "#coderef-");
         render_attribute(r, &det->path, render_url_escaped);
@@ -940,6 +942,15 @@ render_link_href(ORG_HTML* r, const ORG_SPAN_LINK_DETAIL* det)
         RENDER_VERBATIM(r, ":");
         render_attribute(r, &det->path, render_url_escaped);
     }
+}
+
+/* Check whether the text of the link is its rendered path instead of the raw
+ * link (as ox-html does for "file" links without a description, e.g.
+ * "[[file:notes.org]]" has the text "notes.html"). */
+static int
+is_path_text_link(const ORG_SPAN_LINK_DETAIL* det)
+{
+    return (!det->has_description  &&  attribute_eq(&det->type, "file"));
 }
 
 static int
@@ -999,6 +1010,8 @@ render_open_link_span(ORG_HTML* r, const ORG_SPAN_LINK_DETAIL* det, int with_att
     render_affiliated_attrs(r, base_class, (ORG_SIZE) strlen(base_class),
                             with_attrs ? (AFF_ATTRS | AFF_LINK) : 0);
     RENDER_VERBATIM(r, ">");
+    if(is_path_text_link(det))
+        render_file_link_path(r, &det->path, render_html_escaped);
 }
 
 /* Output the identifier of the footnote: Its label, or its number for
@@ -1474,18 +1487,19 @@ static int
 enter_span_callback(ORG_SPANTYPE type, void* detail, void* userdata)
 {
     ORG_HTML* r = (ORG_HTML*) userdata;
-    int inside_img = (r->image_nesting_level > 0);
+    int inside_raw_link = (r->raw_link_nesting_level > 0);
 
     flush_pending_dashes(r, 0);
 
     if(r->suppress_level > 0)
         return 0;
 
-    /* We are inside an image. Its contents (the raw link) is not rendered as
-     * the image is fully rendered by render_open_link_span(). */
-    if(inside_img) {
+    /* We are inside an image, or a link showing its path. Its contents (the
+     * raw link) is not rendered as render_open_link_span() has rendered the
+     * image, or the path, already. */
+    if(inside_raw_link) {
         if(type == ORG_SPAN_LINK)
-            r->image_nesting_level++;
+            r->raw_link_nesting_level++;
         return 0;
     }
 
@@ -1514,8 +1528,13 @@ enter_span_callback(ORG_SPANTYPE type, void* detail, void* userdata)
             if(with_attrs)
                 r->aff_first_link = 0;
             render_open_link_span(r, (const ORG_SPAN_LINK_DETAIL*) detail, with_attrs);
-            if(is_image_link((const ORG_SPAN_LINK_DETAIL*) detail))
-                r->image_nesting_level++;
+            if(is_image_link((const ORG_SPAN_LINK_DETAIL*) detail)) {
+                r->raw_link_is_image = 1;
+                r->raw_link_nesting_level++;
+            } else if(is_path_text_link((const ORG_SPAN_LINK_DETAIL*) detail)) {
+                r->raw_link_is_image = 0;
+                r->raw_link_nesting_level++;
+            }
             break;
         }
         case ORG_SPAN_FOOTNOTE_REF:     if(!(r->flags & ORG_HTML_FLAG_NO_FOOTNOTES))
@@ -1555,9 +1574,12 @@ leave_span_callback(ORG_SPANTYPE type, void* detail, void* userdata)
         return 0;
     }
 
-    if(r->image_nesting_level > 0) {
-        if(type == ORG_SPAN_LINK)
-            r->image_nesting_level--;
+    if(r->raw_link_nesting_level > 0) {
+        if(type == ORG_SPAN_LINK) {
+            r->raw_link_nesting_level--;
+            if(r->raw_link_nesting_level == 0  &&  !r->raw_link_is_image)
+                RENDER_VERBATIM(r, "</a>");
+        }
         return 0;
     }
 
@@ -1601,7 +1623,7 @@ text_callback(ORG_TEXTTYPE type, const ORG_CHAR* text, ORG_SIZE size, void* user
     flush_pending_dashes(r, (type == ORG_TEXT_SOFTBR  ||  (type == ORG_TEXT_BR  &&  r->verse_level > 0)  ||
                              (type == ORG_TEXT_NORMAL  &&  size > 0  &&  text[0] != '-')));
 
-    if(r->suppress_level > 0  ||  r->image_nesting_level > 0  ||  r->in_hidden_snippet)
+    if(r->suppress_level > 0  ||  r->raw_link_nesting_level > 0  ||  r->in_hidden_snippet)
         return 0;
 
     flush_pending_src(r);

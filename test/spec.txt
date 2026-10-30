@@ -809,7 +809,16 @@ HTML files.
 ```````````````````````````````` example
 [[file:notes.txt][notes]] [[file:other.org][other]] [[file:other.org::*Heading][heading]] [[./rel.org]]
 .
-<p><a href="notes.txt">notes</a> <a href="other.html">other</a> <a href="other.html">heading</a> <a href="./rel.html">./rel.org</a></p>
+<p><a href="notes.txt">notes</a> <a href="other.html">other</a> <a href="other.html">heading</a> <a href="./rel.html">./rel.html</a></p>
+````````````````````````````````
+
+The text of a link to a file without a description is the path it points to,
+not the raw link (as in `ox-html`).
+
+```````````````````````````````` example
+[[file:notes.org]] [[file:a&b.txt]] file:plain.org <file:angle.org>
+.
+<p><a href="notes.html">notes.html</a> <a href="a&amp;b.txt">a&amp;b.txt</a> <a href="plain.html">plain.html</a> <a href="angle.html">angle.html</a></p>
 ````````````````````````````````
 
 Links without a description pointing to an image are rendered as the
