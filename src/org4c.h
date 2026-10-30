@@ -173,7 +173,8 @@ typedef enum ORG_BLOCKTYPE {
 
     /* :PROPERTIES: ... :END: (directly following a headline or its planning
      * line; or at the beginning of the document, preceded only by blank lines
-     * and a comment). Not meant to be exported.
+     * and a comment). All its lines have to be node properties ":NAME: VALUE"
+     * (otherwise it is an ORG_BLOCK_DRAWER). Not meant to be exported.
      * Note the text lines within property drawers are terminated with '\n'. */
     ORG_BLOCK_PROPERTY_DRAWER,
 

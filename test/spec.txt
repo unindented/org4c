@@ -355,6 +355,21 @@ SCHEDULED: <2024-01-01 Mon>
 <p>:ID: 1234</p>
 ````````````````````````````````
 
+And so is a drawer `:PROPERTIES:` with anything other than node properties
+`:NAME: VALUE`.
+
+```````````````````````````````` example
+* Task
+:PROPERTIES:
+:ID: 1234
+Not a property.
+:END:
+.
+<h1>Task</h1>
+<p>:ID: 1234
+Not a property.</p>
+````````````````````````````````
+
 # Paragraphs
 
 Consecutive lines of text form a paragraph. Paragraphs are separated by blank

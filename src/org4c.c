@@ -1949,6 +1949,31 @@ org_is_drawer_begin_line(ORG_CTX* ctx, OFF beg, OFF end, OFF* p_name_beg, OFF* p
     return true;
 }
 
+/* Check whether all the lines after the line 'line_beg' up to the line
+ * 'end_line' are node properties ":NAME: VALUE" (or ":NAME:"), as in a
+ * property drawer. */
+static int
+org_is_node_property_block(ORG_CTX* ctx, OFF line_beg, OFF end_line)
+{
+    OFF off = org_skip_newline(ctx, org_line_end(ctx, line_beg));
+
+    while(off < end_line) {
+        OFF end = org_line_end(ctx, off);
+        OFF beg = org_skip_blanks(ctx, off, end);
+
+        /* The name is followed by a blank (or by the end of the line). */
+        off = beg;
+        while(off < end  &&  !ISBLANK(off))
+            off++;
+        if(off - beg < 3  ||  CH(beg) != _T(':')  ||  CH(off-1) != _T(':'))
+            return false;
+
+        off = org_skip_newline(ctx, end);
+    }
+
+    return true;
+}
+
 /* Check whether [beg, end) is a keyword line "#+KEY: VALUE". If yes,
  * provides the end of the key and the beginning of the value. */
 static int
@@ -6196,7 +6221,8 @@ org_analyze_line(ORG_CTX* ctx, OFF line_beg, OFF* p_next_line_beg, ORG_LINE_ANAL
                      * the document, or the second one after a comment.) */
                     if((ctx->after_headline > 0  ||  ctx->at_doc_start > 0)  &&
                        name_end - name_beg == 10  &&
-                       org_ascii_case_eq(STR(name_beg), _T("PROPERTIES"), 10))
+                       org_ascii_case_eq(STR(name_beg), _T("PROPERTIES"), 10)  &&
+                       org_is_node_property_block(ctx, line_beg, end_line))
                         line->type = ORG_LINE_PROPERTYDRAWERBEGIN;
                     else
                         line->type = ORG_LINE_DRAWERBEGIN;
