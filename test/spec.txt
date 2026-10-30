@@ -1749,6 +1749,14 @@ text
 #not a comment</p>
 ````````````````````````````````
 
+```````````````````````````````` example
+text
+#→not a comment either
+.
+<p>text
+#→not a comment either</p>
+````````````````````````````````
+
 Affiliated keywords (e.g. `#+CAPTION:`, `#+NAME:`, `#+ATTR_HTML:`) belong to
 the element directly following them. The caption is reported as the first
 child of the element; the renderer uses the captions of tables, source

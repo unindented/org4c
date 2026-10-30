@@ -6155,7 +6155,8 @@ org_analyze_line(ORG_CTX* ctx, OFF line_beg, OFF* p_next_line_beg, ORG_LINE_ANAL
             break;
 
         case _T('#'):
-            if(off + 1 == end  ||  ISBLANK(off+1)) {
+            /* (Not a tab, as in Emacs, unlike in the indentation.) */
+            if(off + 1 == line_end  ||  CH(off+1) == _T(' ')) {
                 line->type = ORG_LINE_COMMENT;
                 line->contents_beg = (off + 1 < end) ? off + 2 : end;
                 return;
